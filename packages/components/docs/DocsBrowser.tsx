@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Clock3, Search, FileText, ArrowRight, Filter, RotateCcw, BookOpen } from 'lucide-react'
+import { Clock3, Search, FileText, ArrowRight, Filter, RotateCcw, BookOpen, ChevronDown } from 'lucide-react'
 
 import { Badge } from '@/packages/components/ui/badge'
 import { Button } from '@/packages/components/ui/button'
@@ -14,7 +14,13 @@ import {
     PaginationNext,
     PaginationPrevious,
 } from '@/packages/components/ui/pagination'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/packages/components/ui/tabs'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/packages/components/ui/select'
 import { cn } from '@/packages/lib/utils'
 
 export type DocsBrowserDoc = {
@@ -39,11 +45,15 @@ type CategoryFilter = {
 }
 
 const categories: CategoryFilter[] = [
-    { value: 'ALL', label: 'All' },
+    { value: 'ALL', label: 'All Categories' },
     { value: 'MAIN', label: 'Main' },
-    { value: 'HOSTING', label: 'Hosting' },
     { value: 'USERS', label: 'Users' },
+    { value: 'HOSTING', label: 'Hosting' },
     { value: 'INTEGRATIONS', label: 'Integrations' },
+    { value: 'API', label: 'API' },
+    { value: 'SECURITY', label: 'Security' },
+    { value: 'TROUBLESHOOTING', label: 'Troubleshooting' },
+    { value: 'ADMINS', label: 'Admins' },
 ]
 
 const categoryColors: Record<string, string> = {
@@ -51,6 +61,10 @@ const categoryColors: Record<string, string> = {
     HOSTING: 'bg-purple-500/20 text-purple-400',
     USERS: 'bg-green-500/20 text-green-400',
     INTEGRATIONS: 'bg-orange-500/20 text-orange-400',
+    API: 'bg-pink-500/20 text-pink-400',
+    SECURITY: 'bg-red-500/20 text-red-400',
+    TROUBLESHOOTING: 'bg-amber-500/20 text-amber-400',
+    ADMINS: 'bg-indigo-500/20 text-indigo-400',
 }
 
 function formatUpdatedAt(value?: string | null) {
@@ -214,7 +228,7 @@ function DocsList({ docs, total, page, pageCount, pageSize, onPrev, onNext }: Do
 
 export default function DocsBrowser({ docs, bodyVariant = 'card', pageSize = 10 }: Props) {
     const [query, setQuery] = useState('')
-    const [activeCategory, setActiveCategory] = useState<string>(categories[0].value)
+    const [activeCategory, setActiveCategory] = useState<string>('MAIN')
     const [page, setPage] = useState(1)
 
     useEffect(() => {
@@ -259,26 +273,29 @@ export default function DocsBrowser({ docs, bodyVariant = 'card', pageSize = 10 
     }
 
     return (
-        <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value)} className="space-y-6">
+        <div className="space-y-6">
             {/* Filters */}
             <div className="relative rounded-xl bg-white/5 dark:bg-white/[0.02] backdrop-blur-sm border border-white/10 dark:border-white/5 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
                 <div className="relative p-4">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div className="w-full md:w-auto overflow-x-auto scrollbar-none -mx-1 px-1">
-                            <TabsList className="p-1 bg-white/5 dark:bg-white/[0.02] border border-white/10 dark:border-white/5 rounded-lg inline-flex w-max min-w-full sm:min-w-0">
-                                {categories.map((category) => (
-                                    <TabsTrigger
-                                        className="text-xs sm:text-sm px-3 sm:px-4 py-2 hover:text-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm whitespace-nowrap rounded-md transition-all"
-                                        key={category.value}
-                                        value={category.value}
-                                    >
-                                        {category.label}
-                                    </TabsTrigger>
-                                ))}
-                            </TabsList>
+                        {/* Category Dropdown */}
+                        <div className="w-full md:w-48">
+                            <Select value={activeCategory} onValueChange={setActiveCategory}>
+                                <SelectTrigger className="bg-white/5 dark:bg-white/[0.02] border-white/10 dark:border-white/5 focus:border-primary/50 transition-colors">
+                                    <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background/95 backdrop-blur-sm border border-white/10">
+                                    {categories.map((category) => (
+                                        <SelectItem key={category.value} value={category.value}>
+                                            {category.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
+                        {/* Search */}
                         <div className="relative w-full md:w-80">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -293,26 +310,16 @@ export default function DocsBrowser({ docs, bodyVariant = 'card', pageSize = 10 
                 </div>
             </div>
 
-            {categories.map((category) => {
-                const filteredByTab = filterDocs(docs, normalizedQuery, category.value)
-                const tabPageCount = Math.max(1, Math.ceil(filteredByTab.length / pageSize))
-                const tabPage = Math.min(page, tabPageCount)
-                const tabDocs = filteredByTab.slice((tabPage - 1) * pageSize, tabPage * pageSize)
-
-                return (
-                    <TabsContent key={category.value} value={category.value}>
-                        <DocsList
-                            docs={tabDocs}
-                            total={filteredByTab.length}
-                            page={tabPage}
-                            pageCount={tabPageCount}
-                            pageSize={pageSize}
-                            onPrev={() => setPage((prev) => Math.max(prev - 1, 1))}
-                            onNext={() => setPage((prev) => Math.min(prev + 1, tabPageCount))}
-                        />
-                    </TabsContent>
-                )
-            })}
-        </Tabs>
+            {/* Docs List */}
+            <DocsList
+                docs={paginated}
+                total={filteredDocs.length}
+                page={safePage}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                onPrev={() => setPage((prev) => Math.max(prev - 1, 1))}
+                onNext={() => setPage((prev) => Math.min(prev + 1, pageCount))}
+            />
+        </div>
     )
 }

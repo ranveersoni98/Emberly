@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 import { ProfileClientProps } from '@/packages/types/components/profile'
 
@@ -9,6 +10,14 @@ import { Button } from '@/packages/components/ui/button'
 import { format } from 'date-fns'
 import { Separator } from '@/packages/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/packages/components/ui/tabs'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/packages/components/ui/select'
+import { useToast } from '@/packages/hooks/use-toast'
 
 import { ProfileAccount } from './account'
 import { ProfileDomains } from '../dashboard/domains'
@@ -24,6 +33,20 @@ import { LinkedAccounts } from './accounts/linked-accounts'
 import { PasswordBreachAlert } from './password-breach-alert'
 import { ProfileReferrals } from './referrals'
 import { BillingCreditsSection } from './billing-credits'
+import { ProfilePerks } from './perks'
+
+const profileTabs = [
+  { value: 'profile', label: 'Profile' },
+  { value: 'billing', label: 'Billing' },
+  { value: 'uploads', label: 'Uploads' },
+  { value: 'security', label: 'Security' },
+  { value: 'perks', label: 'Perks' },
+  { value: 'referrals', label: 'Referrals' },
+  { value: 'notifications', label: 'Notifications' },
+  { value: 'appearance', label: 'Appearance' },
+  { value: 'testimonials', label: 'Testimonials' },
+  { value: 'data', label: 'Data' },
+]
 
 // Glass card wrapper component for consistent styling
 function GlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -56,6 +79,35 @@ export function ProfileClient({
   formattedUsed,
   usagePercentage,
 }: ProfileClientProps) {
+  const { toast } = useToast()
+  const searchParams = useSearchParams()
+  const [selectedTab, setSelectedTab] = useState<string>('')
+
+  // Handle OAuth success/error messages
+  useEffect(() => {
+    const success = searchParams.get('success')
+    const error = searchParams.get('error')
+
+    if (success) {
+      toast({
+        title: 'Success',
+        description: decodeURIComponent(success),
+      })
+      // Clear query params
+      window.history.replaceState({}, '', '/dashboard/profile')
+    }
+
+    if (error) {
+      toast({
+        title: 'Error',
+        description: decodeURIComponent(error),
+        variant: 'destructive',
+      })
+      // Clear query params
+      window.history.replaceState({}, '', '/dashboard/profile')
+    }
+  }, [searchParams, toast])
+
   const handleRefresh = useCallback(() => {
     window.location.reload()
   }, [])
@@ -64,6 +116,25 @@ export function ProfileClient({
   const defaultTab = useMemo(() => {
     return user.passwordBreachDetectedAt ? 'security' : 'profile'
   }, [user.passwordBreachDetectedAt])
+
+  // Set initial tab from URL query param or default
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && profileTabs.some(t => t.value === tabParam)) {
+      setSelectedTab(tabParam)
+    } else if (!selectedTab) {
+      setSelectedTab(defaultTab)
+    }
+  }, [defaultTab, selectedTab, searchParams])
+
+  // Update URL when tab changes
+  const handleTabChange = useCallback((value: string) => {
+    setSelectedTab(value)
+    // Update URL without page reload
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', value)
+    window.history.pushState({}, '', url.toString())
+  }, [])
 
   // Default email preferences if not set
   const defaultEmailPreferences = {
@@ -75,19 +146,20 @@ export function ProfileClient({
   }
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-6">
-      <div className="overflow-x-auto">
-        <TabsList className="min-w-max inline-flex h-10 items-center justify-start rounded-xl bg-white/5 dark:bg-black/5 backdrop-blur-sm border border-white/10 dark:border-white/5 p-1 text-muted-foreground gap-1">
-          <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Profile</TabsTrigger>
-          <TabsTrigger value="billing" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Billing</TabsTrigger>
-          <TabsTrigger value="uploads" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Uploads</TabsTrigger>
-          <TabsTrigger value="security" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Security</TabsTrigger>
-          <TabsTrigger value="referrals" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Referrals</TabsTrigger>
-          <TabsTrigger value="notifications" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Notifications</TabsTrigger>
-          <TabsTrigger value="appearance" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Appearance</TabsTrigger>
-          <TabsTrigger value="testimonials" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Testimonials</TabsTrigger>
-          <TabsTrigger value="data" className="rounded-lg data-[state=active]:bg-white/10 dark:data-[state=active]:bg-white/5 data-[state=active]:text-foreground transition-all">Data</TabsTrigger>
-        </TabsList>
+    <Tabs value={selectedTab} onValueChange={handleTabChange} className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Select value={selectedTab} onValueChange={handleTabChange}>
+          <SelectTrigger id="profile-select" className="w-48 bg-white/5 dark:bg-black/5 backdrop-blur-sm border border-white/10 dark:border-white/5">
+            <SelectValue placeholder="Select a section" />
+          </SelectTrigger>
+          <SelectContent className="bg-white/95 dark:bg-black/90 border border-white/10 dark:border-white/5 backdrop-blur-sm">
+            {profileTabs.map((tab) => (
+              <SelectItem key={tab.value} value={tab.value}>
+                {tab.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <TabsContent value="profile" className="space-y-6">
@@ -200,6 +272,20 @@ export function ProfileClient({
           </GlassCardHeader>
           <GlassCardContent>
             <ProfileSecurity onUpdate={handleRefresh} />
+          </GlassCardContent>
+        </GlassCard>
+      </TabsContent>
+
+      <TabsContent value="perks" className="space-y-6">
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>Your Perks</GlassCardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              View your active perks and discover new ones to unlock
+            </p>
+          </GlassCardHeader>
+          <GlassCardContent>
+            <ProfilePerks />
           </GlassCardContent>
         </GlassCard>
       </TabsContent>

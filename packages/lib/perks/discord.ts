@@ -88,28 +88,45 @@ export async function verifyDiscordBoosterStatus(
     const isBooster = await isDiscordBooster(discordUserId)
 
     if (isBooster) {
-      if (!alreadyEarned) {
-        // First time - award the perk
-        await addPerkRole(userId, PERK_ROLES.DISCORD_BOOSTER)
-        logger.info('Discord booster perk awarded to user', { userId, discordUserId })
-        
-        // Get user email for event emission
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { email: true },
-        })
-        
-        if (user?.email) {
-          // Emit perk-gained event
-          await events.emit('user.perk-gained', {
-            userId,
-            email: user.email,
-            perkName: 'Discord Booster',
-            perkDescription: 'Unlock exclusive perks for boosting the Emberly Discord server',
-            perkIcon: '🎉',
-            expiresAt: null, // Discord booster perk doesn't expire
-            viewUrl: '/profile?tab=security#linked-accounts',
+      // Get the linked account to check boost duration
+      const linkedAccount = await prisma.linkedAccount.findFirst({
+        where: {
+          userId,
+          provider: 'discord',
+          providerUserId: discordUserId,
+        },
+      })
+
+      if (linkedAccount) {
+        // Calculate months since first link (boost start)
+        const monthsSinceStart = Math.floor(
+          (Date.now() - linkedAccount.linkedAt.getTime()) / (1000 * 60 * 60 * 24 * 30)
+        )
+        const months = Math.max(1, monthsSinceStart) // Minimum 1 month for active boosters
+
+        // Store the duration in the perk role for milestone calculation
+        await addPerkRole(userId, `DISCORD_BOOSTER:${months}`)
+        logger.info('Discord booster perk updated', { userId, discordUserId, months })
+
+        if (!alreadyEarned) {
+          // First time earning - send notification email
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { email: true },
           })
+
+          if (user?.email) {
+            // Emit perk-gained event
+            await events.emit('user.perk-gained', {
+              userId,
+              email: user.email,
+              perkName: 'Discord Booster',
+              perkDescription: 'Unlock exclusive perks for boosting the Emberly Discord server',
+              perkIcon: '🚀',
+              expiresAt: null, // Discord booster perk doesn't expire
+              viewUrl: '/profile?tab=security#linked-accounts',
+            })
+          }
         }
       }
       return true

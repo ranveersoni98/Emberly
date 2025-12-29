@@ -5,6 +5,7 @@ import { verifyContributorStatus } from '@/packages/lib/perks/github'
 import { getGitHubUserInfo } from '@/packages/lib/perks/github'
 import { env } from '@/packages/lib/config/env'
 import { NextRequest, NextResponse } from 'next/server'
+import { sendTemplateEmail, AccountChangeEmail } from '@/packages/lib/emails'
 
 /**
  * GET /api/auth/link/github/callback
@@ -26,13 +27,13 @@ export async function GET(request: NextRequest) {
         if (error) {
             console.warn('[GitHub OAuth callback] Error from GitHub:', error)
             return NextResponse.redirect(
-                new URL(`/profile?error=GitHub authorization failed: ${error}`, request.url)
+                new URL(`/dashboard/profile?error=GitHub authorization failed: ${error}`, request.url)
             )
         }
 
         if (!code) {
             return NextResponse.redirect(
-                new URL('/profile?error=Missing authorization code', request.url)
+                new URL('/dashboard/profile?error=Missing authorization code', request.url)
             )
         }
 
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
             console.error('[GitHub OAuth callback] Token exchange failed:', tokenData.error)
             return NextResponse.redirect(
                 new URL(
-                    `/profile?error=Failed to exchange GitHub code: ${tokenData.error}`,
+                    `/dashboard/profile?error=Failed to exchange GitHub code: ${tokenData.error}`,
                     request.url
                 )
             )
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
 
         if (!userInfo) {
             return NextResponse.redirect(
-                new URL('/profile?error=Failed to retrieve GitHub user info', request.url)
+                new URL('/dashboard/profile?error=Failed to retrieve GitHub user info', request.url)
             )
         }
 
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
         if (existingLink && existingLink.userId !== session.user.id) {
             return NextResponse.redirect(
                 new URL(
-                    `/profile?error=This GitHub account is already linked to another user`,
+                    `/dashboard/profile?error=This GitHub account is already linked to another user`,
                     request.url
                 )
             )
@@ -133,11 +134,29 @@ export async function GET(request: NextRequest) {
             tokenData.access_token
         )
 
-        return NextResponse.redirect(new URL('/profile?success=GitHub account linked', request.url))
+        // Send account change email notification
+        if (session.user.email) {
+            sendTemplateEmail({
+                to: session.user.email,
+                subject: 'GitHub Account Linked to Your Emberly Account',
+                template: AccountChangeEmail,
+                props: {
+                    userName: session.user.name || undefined,
+                    changes: [
+                        `GitHub account "${userInfo.login}" was linked to your account`,
+                        `Date: ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}`,
+                    ],
+                },
+            }).catch((error) => {
+                console.error('[GitHub OAuth callback] Failed to send email:', error)
+            })
+        }
+
+        return NextResponse.redirect(new URL('/dashboard/profile?success=GitHub%20account%20linked', request.url))
     } catch (error) {
         console.error('[GitHub OAuth callback]', error)
         return NextResponse.redirect(
-            new URL('/profile?error=Failed to link GitHub account', request.url)
+            new URL('/dashboard/profile?error=Failed to link GitHub account', request.url)
         )
     }
 }

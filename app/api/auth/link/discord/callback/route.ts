@@ -5,6 +5,7 @@ import { verifyDiscordBoosterStatus } from '@/packages/lib/perks/discord'
 import { getDiscordUserInfo } from '@/packages/lib/perks/discord'
 import { env } from '@/packages/lib/config/env'
 import { NextRequest, NextResponse } from 'next/server'
+import { sendTemplateEmail, AccountChangeEmail } from '@/packages/lib/emails'
 
 /**
  * GET /api/auth/link/discord/callback
@@ -26,13 +27,13 @@ export async function GET(request: NextRequest) {
         if (error) {
             console.warn('[Discord OAuth callback] Error from Discord:', error)
             return NextResponse.redirect(
-                new URL(`/profile?error=Discord authorization failed: ${error}`, request.url)
+                new URL(`/dashboard/profile?error=Discord authorization failed: ${error}`, request.url)
             )
         }
 
         if (!code) {
             return NextResponse.redirect(
-                new URL('/profile?error=Missing authorization code', request.url)
+                new URL('/dashboard/profile?error=Missing authorization code', request.url)
             )
         }
 
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
             console.error('[Discord OAuth callback] Token exchange failed:', tokenData.error)
             return NextResponse.redirect(
                 new URL(
-                    `/profile?error=Failed to exchange Discord code: ${tokenData.error}`,
+                    `/dashboard/profile?error=Failed to exchange Discord code: ${tokenData.error}`,
                     request.url
                 )
             )
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
         if (!userInfo.id) {
             console.error('[Discord OAuth callback] Failed to get user info:', userInfo.error)
             return NextResponse.redirect(
-                new URL('/profile?error=Failed to retrieve Discord user info', request.url)
+                new URL('/dashboard/profile?error=Failed to retrieve Discord user info', request.url)
             )
         }
 
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
         if (existingLink && existingLink.userId !== session.user.id) {
             return NextResponse.redirect(
                 new URL(
-                    `/profile?error=This Discord account is already linked to another user`,
+                    `/dashboard/profile?error=This Discord account is already linked to another user`,
                     request.url
                 )
             )
@@ -140,11 +141,29 @@ export async function GET(request: NextRequest) {
         // Verify booster status
         await verifyDiscordBoosterStatus(session.user.id, userInfo.id)
 
-        return NextResponse.redirect(new URL('/profile?success=Discord account linked', request.url))
+        // Send account change email notification
+        if (session.user.email) {
+            sendTemplateEmail({
+                to: session.user.email,
+                subject: 'Discord Account Linked to Your Emberly Account',
+                template: AccountChangeEmail,
+                props: {
+                    userName: session.user.name || undefined,
+                    changes: [
+                        `Discord account "${userInfo.username || 'Unknown'}" was linked to your account`,
+                        `Date: ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}`,
+                    ],
+                },
+            }).catch((error) => {
+                console.error('[Discord OAuth callback] Failed to send email:', error)
+            })
+        }
+
+        return NextResponse.redirect(new URL('/dashboard/profile?success=Discord%20account%20linked', request.url))
     } catch (error) {
         console.error('[Discord OAuth callback]', error)
         return NextResponse.redirect(
-            new URL('/profile?error=Failed to link Discord account', request.url)
+            new URL('/dashboard/profile?error=Failed to link Discord account', request.url)
         )
     }
 }

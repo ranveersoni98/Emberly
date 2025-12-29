@@ -56,11 +56,24 @@ export async function buildRichMetadata({
   })
 
   // Build thumbnail URL for images and videos
-  const thumbnailUrl = new URL(`/api/files/${fileId}/thumbnail`, baseUrl).toString()
+  let thumbnailUrl: string | undefined
+  try {
+    // For images and videos, use the thumbnail endpoint
+    if (classification.isImage || classification.isVideo) {
+      thumbnailUrl = new URL(`/api/files/${fileId}/thumbnail`, baseUrl).toString()
+    } else {
+      // For other file types, try to get a generic preview
+      thumbnailUrl = new URL(`/api/files/${fileId}/thumbnail`, baseUrl).toString()
+    }
+  } catch (error) {
+    console.error('Failed to generate thumbnail URL:', error)
+    thumbnailUrl = new URL('/api/og', baseUrl).toString()
+  }
 
   // Build video URL for Discord/social embeds
   let videoUrl: string | undefined
   if (classification.isVideo) {
+    // Default to rawUrl
     videoUrl = rawUrl
     try {
       const storageProvider = await getStorageProvider()
@@ -72,6 +85,7 @@ export async function buildRichMetadata({
       }
     } catch (error) {
       console.error('Failed to get video URL from storage provider:', error)
+      // Fallback to rawUrl which is already set
     }
   }
 
@@ -86,7 +100,7 @@ export async function buildRichMetadata({
       siteName: 'Emberly',
       locale: 'en_US',
       type: getOpenGraphType(classification),
-      images: getOpenGraphImages(classification, thumbnailUrl),
+      images: thumbnailUrl ? getOpenGraphImages(classification, thumbnailUrl) : undefined,
       videos: classification.isVideo && videoUrl ? [
         {
           url: videoUrl,
@@ -107,7 +121,7 @@ export async function buildRichMetadata({
       card: 'summary_large_image',
       title: baseTitle,
       description: baseDescription,
-      images: [thumbnailUrl],
+      images: thumbnailUrl ? [thumbnailUrl] : undefined,
     },
     other: {
       'theme-color': '#F97316',

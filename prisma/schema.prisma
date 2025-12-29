@@ -57,6 +57,16 @@ model User {
   emailNotificationsEnabled Boolean @default(true)
   emailPreferences          Json    @default("{\"security\": true, \"account\": true, \"billing\": true, \"marketing\": false, \"productUpdates\": true}")
 
+  // Public profile fields
+  bio                       String?
+  website                   String?
+  twitter                   String?
+  github                    String?
+  discord                   String?
+  isProfilePublic           Boolean   @default(true)
+  profileBio                String?
+  profileVisibility         String    @default("PUBLIC") // PUBLIC or PRIVATE
+
   files                       File[]
   shortenedUrls               ShortenedUrl[]
   stripeCustomerId            String?              @unique
@@ -502,63 +512,6 @@ model St5CommentAttachment {
   @@index([fileId])
 }
 
-enum UserRole {
-  SUPERADMIN
-  ADMIN
-  USER
-}
-
-enum FileVisibility {
-  PUBLIC
-  PRIVATE
-}
-
-enum EventStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-  SCHEDULED
-}
-
-enum FileExpiration {
-  DISABLED
-  HOUR
-  DAY
-  WEEK
-  MONTH
-}
-
-enum ExpiryAction {
-  DELETE
-  SET_PRIVATE
-}
-
-enum DocCategory {
-  MAIN
-  USERS
-  HOSTING
-  INTEGRATIONS
-}
-
-enum DocStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-enum LegalStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-enum PostStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
 model LinkedAccount {
   id            String   @id @default(cuid())
   userId        String
@@ -601,4 +554,66 @@ model PasswordHistory {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+
+enum UserRole {
+  SUPERADMIN
+  ADMIN
+  USER
+}
+
+enum FileVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum EventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  SCHEDULED
+}
+
+enum FileExpiration {
+  DISABLED
+  HOUR
+  DAY
+  WEEK
+  MONTH
+}
+
+enum ExpiryAction {
+  DELETE
+  SET_PRIVATE
+}
+
+enum DocCategory {
+  API
+  MAIN
+  USERS
+  HOSTING
+  INTEGRATIONS
+  SECURITY
+  TROUBLESHOOTING
+  ADMINS
+}
+
+enum DocStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LegalStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }

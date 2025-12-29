@@ -31,6 +31,7 @@ export const PUBLIC_PATHS = [
   '/press',
   '/partners',
   '/pricing',
+  '/user',
   '/opengraph-image',
   '/twitter-image',
   '/api/auth',

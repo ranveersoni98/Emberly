@@ -52,6 +52,22 @@ export function inferCategoryAndSlug(slugInput: string | string[] | null | undef
         return { category: 'INTEGRATIONS', slug: (rest.length ? rest : ['index']).join('/').toLowerCase() }
     }
 
+    if (lower === 'api') {
+        return { category: 'API', slug: (rest.length ? rest : ['index']).join('/').toLowerCase() }
+    }
+
+    if (lower === 'security') {
+        return { category: 'SECURITY', slug: (rest.length ? rest : ['index']).join('/').toLowerCase() }
+    }
+
+    if (lower === 'troubleshooting' || lower === 'troubleshoot') {
+        return { category: 'TROUBLESHOOTING', slug: (rest.length ? rest : ['index']).join('/').toLowerCase() }
+    }
+
+    if (lower === 'admin' || lower === 'admins') {
+        return { category: 'ADMINS', slug: (rest.length ? rest : ['index']).join('/').toLowerCase() }
+    }
+
     if (lower === 'main') {
         return { category: 'MAIN', slug: (rest.length ? rest : ['index']).join('/').toLowerCase() }
     }

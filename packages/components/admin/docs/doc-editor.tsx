@@ -22,10 +22,14 @@ import { useToast } from '@/packages/hooks/use-toast'
 import type { DocRecord } from './doc-list'
 
 const categories = [
+    { value: 'MAIN', label: 'Main' },
     { value: 'HOSTING', label: 'Hosting' },
     { value: 'USERS', label: 'Users' },
     { value: 'INTEGRATIONS', label: 'Integrations' },
-    { value: 'MAIN', label: 'Main' },
+    { value: 'API', label: 'API' },
+    { value: 'SECURITY', label: 'Security' },
+    { value: 'TROUBLESHOOTING', label: 'Troubleshooting' },
+    { value: 'ADMINS', label: 'Admins' },
 ]
 
 const statuses = [
@@ -42,7 +46,7 @@ type Props = {
 
 export function DocEditor({ docId, onSaved, onCancel }: Props) {
     const { toast } = useToast()
-    const [category, setCategory] = useState('HOSTING')
+    const [category, setCategory] = useState('MAIN')
     const [slug, setSlug] = useState('')
     const [title, setTitle] = useState('')
     const [content, setContent] = useState('')
@@ -55,7 +59,7 @@ export function DocEditor({ docId, onSaved, onCancel }: Props) {
 
     useEffect(() => {
         if (!docId) {
-            setCategory('HOSTING')
+            setCategory('MAIN')
             setSlug('')
             setTitle('')
             setContent('')

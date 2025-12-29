@@ -25,6 +25,11 @@ export const UpdateProfileSchema = z.object({
   // Email notification preferences
   emailNotificationsEnabled: z.boolean().optional(),
   emailPreferences: EmailPreferencesSchema.partial().optional(),
+  // Public profile fields
+  bio: z.string().max(500).nullable().optional(),
+  website: z.string().url().nullable().optional(),
+  isProfilePublic: z.boolean().optional(),
+  profileVisibility: z.string().optional(),
 })
 
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileSchema>

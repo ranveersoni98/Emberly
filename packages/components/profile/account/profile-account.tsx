@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/packages/components/ui/av
 import { Button } from '@/packages/components/ui/button'
 import { Input } from '@/packages/components/ui/input'
 import { Label } from '@/packages/components/ui/label'
+import { Textarea } from '@/packages/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -27,10 +28,29 @@ export function ProfileAccount({ user, onUpdate }: ProfileAccountProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+  const [linkedAccounts, setLinkedAccounts] = useState<Array<{ provider: string; providerUsername?: string }>>([])
 
   const nameRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)
+  const bioRef = useRef<HTMLTextAreaElement>(null)
+  const websiteRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch linked accounts on mount
+  useEffect(() => {
+    const fetchLinkedAccounts = async () => {
+      try {
+        const response = await fetch('/api/profile/linked-accounts')
+        if (response.ok) {
+          const data = await response.json()
+          setLinkedAccounts(data.linkedAccounts || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch linked accounts:', error)
+      }
+    }
+    fetchLinkedAccounts()
+  }, [])
 
   const triggerAvatarUpload = () => {
     fileInputRef.current?.click()
@@ -98,6 +118,8 @@ export function ProfileAccount({ user, onUpdate }: ProfileAccountProps) {
         body: JSON.stringify({
           name: nameRef.current?.value,
           email: emailRef.current?.value,
+          bio: bioRef.current?.value || null,
+          website: websiteRef.current?.value || null,
         }),
       })
 
@@ -237,6 +259,33 @@ export function ProfileAccount({ user, onUpdate }: ProfileAccountProps) {
                   placeholder="Your email"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bio">Bio</Label>
+                <Textarea
+                  id="bio"
+                  ref={bioRef}
+                  defaultValue={(user as any).bio || ''}
+                  placeholder="Tell us about yourself (max 500 characters)"
+                  maxLength={500}
+                  className="resize-none"
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {((user as any).bio || '').length}/500
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="website">Website</Label>
+                <Input
+                  id="website"
+                  ref={websiteRef}
+                  type="url"
+                  defaultValue={(user as any).website || ''}
+                  placeholder="https://example.com"
+                />
+              </div>
             </div>
 
             <div className="flex justify-end">
@@ -247,8 +296,34 @@ export function ProfileAccount({ user, onUpdate }: ProfileAccountProps) {
           </form>
         </div>
       </div>
+      {/* Linked Accounts Section */}
+      <p className="text-sm text-muted-foreground mt-6">
+        To connect or manage your accounts, visit the <span className="font-medium">Linked Accounts</span> section in the tabs above
+      </p>
 
+      {/* Profile Visibility Section */}
       <div className="flex items-center justify-between rounded-lg border p-4 mt-6">
+        <div className="space-y-0.5">
+          <Label htmlFor="profile-visibility">Public Profile</Label>
+          <p className="text-sm text-muted-foreground">
+            Make your profile visible to other users at <span className="font-medium">/user/{(user as any).urlId || (user as any).vanityId}</span>
+          </p>
+        </div>
+        <Switch
+          id="profile-visibility"
+          checked={(user as any).isProfilePublic ?? true}
+          onCheckedChange={(c) =>
+            handleValueChange(
+              c,
+              'isProfilePublic',
+              'Profile visibility updated successfully'
+            )
+          }
+          disabled={isLoading}
+        />
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border p-4 mt-4">
         <div className="space-y-0.5">
           <Label htmlFor="randomize-urls">Randomize File URLs</Label>
           <p className="text-sm text-muted-foreground">

@@ -186,6 +186,7 @@ export async function githubUserExists(
 
 /**
  * Get GitHub user info (for storing user data)
+ * If no username provided, fetches authenticated user's info
  */
 export async function getGitHubUserInfo(
   githubUsername: string,
@@ -197,8 +198,11 @@ export async function getGitHubUserInfo(
   name?: string
 } | null> {
   try {
+    // If no username provided, use /user endpoint (for authenticated user)
+    const endpoint = githubUsername ? `/users/${githubUsername}` : `/user`
+    
     const user = await githubApiCall<any>(
-      `/users/${githubUsername}`,
+      endpoint,
       personalAccessToken
     )
     return {

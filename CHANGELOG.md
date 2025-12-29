@@ -4,6 +4,76 @@ All notable changes to this project will be documented in this file.
 
 The format is based on "Keep a Changelog" and follows [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2025-12-29
+
+### Added
+- **Enhanced Public Profile System** - Comprehensive user profile pages with GitHub integration and milestone-based perk displays.
+  - Tab-based interface with Overview, Contributions, and Files sections for organized content presentation.
+  - Milestone tier system display: Bronze (🥉), Silver (🥈), Gold (🥇), Platinum (💎), and Diamond (💠) badges for contributors and Discord boosters.
+  - Real-time contribution stats fetched from GitHub API showing lines of code, repository activity, and commit history.
+  - Public files showcase displaying user's shared files with view counts, download stats, and upload dates.
+  - Social account badges: Discord username badge with themed styling, GitHub profile link with external indicator.
+  - Perk benefits breakdown showing tier-specific storage bonuses and custom domain slot allocations.
+  - "How to Earn Perks" section guiding users on becoming contributors, Discord boosters, or affiliates.
+- **GitHub Contributions API** (`/api/users/[id]/contributions`) - Detailed contribution metrics and activity tracking.
+  - Fetches total lines of code contributed across EmberlyOSS repositories.
+  - Lists contributed repositories with name, description, programming language, and star count.
+  - Retrieves up to 10 most recent commits with SHA, message, date, and repository name.
+  - Collects commit statistics: files changed, lines added (green), lines deleted (red).
+  - Aggregates total contribution stats: cumulative files changed, additions, deletions, and repository count.
+  - Uses GitHub PAT for public profile viewing to avoid rate limiting and token exposure.
+- **Public Files API** (`/api/users/[id]/public-files`) - Public file listing endpoint.
+  - Queries user's public files (visibility: 'PUBLIC') with comprehensive metadata.
+  - Returns file details: name, URL path, MIME type, size, view count, download count, upload date.
+  - Limits results to 20 most recent files ordered by upload date descending.
+  - Generates full URLs for direct file access.
+- **Dashboard Profile Query Parameters** - URL-based tab navigation support.
+  - Added `?tab=` query parameter support to profile settings page (e.g., `/dashboard/profile?tab=security`).
+  - Tab state syncs with URL using `window.history.pushState` for shareable links.
+  - Initial tab selection reads from URL on page load with validation against available tabs.
+  - Works with both tabs component and select menu for consistent navigation experience.
+
+### Changed
+- **Public Profile Architecture Refactored** - Switched from API-based to direct database access.
+  - Removed intermediate API route calls in favor of server-side Prisma queries for better performance.
+  - Updated to use Next.js 15 async params pattern (`await params`) throughout dynamic routes.
+  - Implemented GlassCard component pattern for visual consistency across profile sections.
+  - Consolidated perk calculation logic in server components to reduce client-side processing.
+- **Perk Display System Enhanced** - Accurate milestone-based benefit visualization.
+  - Updated to display actual tier names (Bronze/Silver/Gold/Platinum/Diamond) instead of generic labels.
+  - Contribution statistics now show precise lines of code count with locale formatting.
+  - Discord booster duration displayed in months with proper pluralization.
+  - Storage and domain bonuses calculated from milestone constants with tier-specific values.
+  - Added visual tier icons for quick recognition of achievement levels.
+- **API Route Organization** - Consolidated dynamic routes under consistent parameter naming.
+  - Moved contribution and file endpoints from `/api/users/[username]/` to `/api/users/[id]/` to avoid route conflicts.
+  - Renamed files endpoint to `public-files` to prevent collision with existing `/api/users/[id]/files/[fileId]/` route.
+  - Updated routes to accept id, urlId, vanityId, or username for flexible user lookup.
+  - Frontend updated to use `user.id` for API calls ensuring consistent identifier usage.
+- **GitHub Integration Display** - Rich commit history and repository contribution visualization.
+  - Contributions tab now shows detailed commit cards with truncated SHA hashes and clickable links.
+  - Added color-coded statistics: green for additions, red for deletions, blue for files changed.
+  - Repository cards display with hover effects and external link indicators.
+  - Commit metadata includes repository name, file count, line changes, and formatted dates.
+
+### Fixed
+- **Next.js 15 Compatibility Issues** - Resolved dynamic route parameter handling errors.
+  - Fixed "params is a Promise" errors by properly awaiting params in all dynamic route handlers.
+  - Removed invalid `fetch` cache options causing build-time errors.
+  - Updated API route type definitions to use `Promise<{ id: string }>` parameter types.
+- **Prisma Schema Field Errors** - Corrected field name mismatches across queries.
+  - Fixed `accounts` field references to use correct `linkedAccounts` relation name.
+  - Updated `username` field access to use `providerUsername` from LinkedAccount model.
+  - Corrected provider account data structure queries for GitHub and Discord integrations.
+- **Dynamic Route Naming Conflicts** - Resolved slug parameter conflicts in API routes.
+  - Eliminated "You cannot use different slug names for the same dynamic path" error.
+  - Standardized on `[id]` parameter naming throughout `/api/users/` route hierarchy.
+  - Prevented route collision between user files endpoint and existing file management routes.
+- **Public Profile 404 Errors** - Fixed routing and data fetching issues.
+  - Resolved profile not found errors by ensuring proper user lookup across urlId, vanityId, and name fields.
+  - Added `isProfilePublic: true` filter to all public profile queries for privacy enforcement.
+  - Implemented proper null handling and not-found redirects for non-existent or private profiles.
+
 ## [1.2.0] - 2025-12-29
 
 ### Added

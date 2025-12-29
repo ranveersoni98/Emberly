@@ -42,6 +42,10 @@ export default async function ProfilePage() {
       defaultFileExpiration: true,
       defaultFileExpirationAction: true,
       urlId: true,
+      vanityId: true,
+      bio: true,
+      website: true,
+      isProfilePublic: true,
       stripeCustomerId: true,
       passwordBreachDetectedAt: true,
       subscriptions: {
@@ -111,6 +115,10 @@ export default async function ProfilePage() {
               randomizeFileUrls: user.randomizeFileUrls,
               enableRichEmbeds: user.enableRichEmbeds ?? true,
               urlId: user.urlId,
+              vanityId: user.vanityId,
+              bio: user.bio,
+              website: user.website,
+              isProfilePublic: user.isProfilePublic,
               stripeCustomerId: user.stripeCustomerId ?? null,
               subscription: user.subscriptions?.[0]
                 ? {

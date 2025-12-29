@@ -7,8 +7,11 @@ import * as docs from '@/packages/lib/docs/service'
 
 function parseCategory(raw: string | null): DocCategory | null {
     if (!raw) return null
-    const upper = raw.toUpperCase() as DocCategory
-    if (upper === 'MAIN' || upper === 'USERS' || upper === 'HOSTING' || upper === 'INTEGRATIONS') return upper
+    const upper = raw.toUpperCase().trim()
+    const validCategories = ['MAIN', 'USERS', 'HOSTING', 'INTEGRATIONS', 'API', 'SECURITY', 'TROUBLESHOOTING', 'ADMINS']
+    if (validCategories.includes(upper)) {
+        return upper as DocCategory
+    }
     return null
 }
 
@@ -105,6 +108,89 @@ export async function POST(request: Request) {
     } catch (error) {
         return apiError(
             error instanceof Error ? error.message : 'Failed to create doc',
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        )
+    }
+}
+export async function PATCH(request: Request) {
+    try {
+        const { user, response } = await requireAuth(request)
+        if (response) return response
+
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPERADMIN')) {
+            return apiError('Forbidden', HTTP_STATUS.FORBIDDEN)
+        }
+
+        const url = new URL(request.url)
+        const id = url.pathname.split('/').pop()
+        if (!id) return apiError('ID required', HTTP_STATUS.BAD_REQUEST)
+
+        const body = await request.json()
+        const { category, slug, title, content, excerpt, status, publishedAt, sortOrder } = body
+
+        let parsedCategory: DocCategory | undefined = undefined
+        if (category) {
+            parsedCategory = parseCategory(category) || undefined
+            if (category && !parsedCategory) return apiError('Invalid category', HTTP_STATUS.BAD_REQUEST)
+        }
+
+        const updated = await docs.updateDoc(id, {
+            category: parsedCategory,
+            slug,
+            title,
+            content,
+            excerpt: excerpt ?? undefined,
+            status,
+            publishedAt: publishedAt ? new Date(publishedAt) : undefined,
+            sortOrder: Number.isFinite(sortOrder) ? sortOrder : undefined,
+        })
+
+        return apiResponse(updated)
+    } catch (error) {
+        return apiError(
+            error instanceof Error ? error.message : 'Failed to update doc',
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        )
+    }
+}
+
+export async function PUT(request: Request) {
+    try {
+        const { user, response } = await requireAuth(request)
+        if (response) return response
+
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPERADMIN')) {
+            return apiError('Forbidden', HTTP_STATUS.FORBIDDEN)
+        }
+
+        const url = new URL(request.url)
+        const id = url.pathname.split('/').pop()
+        if (!id) return apiError('ID required', HTTP_STATUS.BAD_REQUEST)
+
+        const body = await request.json()
+        const { category, slug, title, content, excerpt, status, publishedAt, sortOrder } = body
+
+        let parsedCategory: DocCategory | undefined = undefined
+        if (category) {
+            parsedCategory = parseCategory(category) || undefined
+            if (category && !parsedCategory) return apiError('Invalid category', HTTP_STATUS.BAD_REQUEST)
+        }
+
+        const updated = await docs.updateDoc(id, {
+            category: parsedCategory,
+            slug,
+            title,
+            content,
+            excerpt: excerpt ?? undefined,
+            status,
+            publishedAt: publishedAt ? new Date(publishedAt) : undefined,
+            sortOrder: Number.isFinite(sortOrder) ? sortOrder : undefined,
+        })
+
+        return apiResponse(updated)
+    } catch (error) {
+        return apiError(
+            error instanceof Error ? error.message : 'Failed to update doc',
             HTTP_STATUS.INTERNAL_SERVER_ERROR
         )
     }

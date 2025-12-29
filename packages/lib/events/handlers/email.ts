@@ -1,6 +1,6 @@
 import type { EventPayload, EventType } from '@/packages/types/events'
 
-import { sendTemplateEmail, BasicEmail, AdminBroadcastEmail, AccountChangeEmail } from '@/packages/lib/emails'
+import { sendTemplateEmail, BasicEmail, AdminBroadcastEmail, AccountChangeEmail, PerkGainedEmail } from '@/packages/lib/emails'
 import { loggers } from '@/packages/lib/logger'
 
 import { events } from '../index'
@@ -63,6 +63,24 @@ async function sendEmail(options: {
                 changes,
                 manageUrl: `${baseUrl}/dashboard/profile`,
                 supportUrl: `${baseUrl}/contact`,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    // Map perk-gained event to PerkGainedEmail template
+    if (template === 'perk-gained') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: PerkGainedEmail,
+            props: {
+                perkName: String(variables.perkName || 'Unknown Perk'),
+                perkDescription: typeof variables.perkDescription === 'string' ? variables.perkDescription : undefined,
+                perkIcon: typeof variables.perkIcon === 'string' ? variables.perkIcon : '🎉',
+                expiresAt: typeof variables.expiresAt === 'string' ? variables.expiresAt : null,
+                viewUrl: typeof variables.viewUrl === 'string' ? variables.viewUrl : 'https://emberly.dev/profile',
             },
             skipTracking: true,
         })

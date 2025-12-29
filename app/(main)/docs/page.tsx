@@ -18,6 +18,22 @@ function docHref(category: string, slug: string): string | null {
     if (slug === 'index') return '/docs/integrations'
     return `/docs/integrations/${slug}`
   }
+  if (category === 'API') {
+    if (slug === 'index') return '/docs/api'
+    return `/docs/api/${slug}`
+  }
+  if (category === 'SECURITY') {
+    if (slug === 'index') return '/docs/security'
+    return `/docs/security/${slug}`
+  }
+  if (category === 'TROUBLESHOOTING') {
+    if (slug === 'index') return '/docs/troubleshooting'
+    return `/docs/troubleshooting/${slug}`
+  }
+  if (category === 'ADMINS') {
+    if (slug === 'index') return '/docs/admin'
+    return `/docs/admin/${slug}`
+  }
   if (category === 'MAIN') {
     if (slug === 'index') return '/docs'
     return `/docs/${slug}`

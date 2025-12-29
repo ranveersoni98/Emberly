@@ -32,6 +32,16 @@ export async function GET(req: Request) {
         emailPreferences: true,
         createdAt: true,
         updatedAt: true,
+        // Public profile fields
+        bio: true,
+        website: true,
+        twitter: true,
+        github: true,
+        discord: true,
+        isProfilePublic: true,
+        profileVisibility: true,
+        urlId: true,
+        vanityId: true,
         files: {
           select: {
             id: true,
@@ -167,6 +177,12 @@ export async function PUT(req: Request) {
       updateData.emailPreferences = { ...existingPrefs, ...body.emailPreferences }
     }
 
+    // Public profile fields
+    if (body.bio !== undefined) updateData.bio = body.bio
+    if (body.website !== undefined) updateData.website = body.website
+    if (typeof body.isProfilePublic === 'boolean') updateData.isProfilePublic = body.isProfilePublic
+    if (body.profileVisibility) updateData.profileVisibility = body.profileVisibility
+
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: updateData,
@@ -179,6 +195,11 @@ export async function PUT(req: Request) {
         enableRichEmbeds: true,
         emailNotificationsEnabled: true,
         emailPreferences: true,
+        // Public profile fields
+        bio: true,
+        website: true,
+        isProfilePublic: true,
+        profileVisibility: true,
       },
     })
 

@@ -127,8 +127,8 @@ export async function generateMetadata({
     return buildMinimalMetadata('Protected File')
   }
 
-  // Respect user's enableRichEmbeds setting
-  if (!file.user.enableRichEmbeds) {
+  // Respect user's enableRichEmbeds setting - return minimal metadata if disabled
+  if (file.user.enableRichEmbeds === false) {
     return buildMinimalMetadata(file.name)
   }
 

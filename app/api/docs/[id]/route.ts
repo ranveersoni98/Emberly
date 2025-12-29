@@ -4,8 +4,11 @@ import * as docs from '@/packages/lib/docs/service'
 
 function parseCategory(raw: string | null | undefined) {
     if (!raw) return null
-    const upper = String(raw).toUpperCase()
-    if (upper === 'MAIN' || upper === 'USERS' || upper === 'HOSTING' || upper === 'INTEGRATIONS') return upper
+    const upper = String(raw).toUpperCase().trim()
+    const validCategories = ['MAIN', 'USERS', 'HOSTING', 'INTEGRATIONS', 'API', 'SECURITY', 'TROUBLESHOOTING', 'ADMINS']
+    if (validCategories.includes(upper)) {
+        return upper
+    }
     return null
 }
 

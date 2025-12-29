@@ -1,6 +1,6 @@
 import Image from 'next/image'
 
-import { Infinity, AlertCircle, Copy, FileIcon, Loader2, Users, CheckCircle, Download, RefreshCw } from 'lucide-react'
+import { Infinity, AlertCircle, Copy, FileIcon, Loader2, Users, CheckCircle, Download, RefreshCw, Sparkles } from 'lucide-react'
 
 // Theme-aware Emberly logo as inline SVG
 // Respects CSS custom properties for all theme modes including preset hues
@@ -49,4 +49,5 @@ export const Icons = {
   check: CheckCircle,
   download: Download,
   refresh: RefreshCw,
+  sparkles: Sparkles,
 } as const

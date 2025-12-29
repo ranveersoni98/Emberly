@@ -10,6 +10,8 @@ import {
   PERK_CACHE_KEYS,
   PERK_CHECK_INTERVALS,
   GITHUB_CONTRIBUTION_THRESHOLD,
+  CONTRIBUTOR_MILESTONES,
+  DISCORD_BOOSTER_MILESTONES,
   type PerkRole,
 } from './constants'
 
@@ -19,12 +21,59 @@ import {
 export function calculateStorageBonusGB(perkRoles: string[]): number {
   return perkRoles.reduce((total, role) => {
     if (role.startsWith('CONTRIBUTOR:')) {
-      // Format: CONTRIBUTOR:5 means 5 contributor levels = 5GB bonus
-      const levels = parseInt(role.split(':')[1] || '1')
-      return total + levels * PERK_STORAGE_BONUS_GB[PERK_ROLES.CONTRIBUTOR]
+      // Format: CONTRIBUTOR:5000 means 5000 lines of code
+      let loc = parseInt(role.split(':')[1] || '0')
+      
+      // Legacy compatibility: old format was CONTRIBUTOR:{levels} where levels = LOC/1000
+      // If the number is small (< 1000), assume it's the old level format
+      if (loc > 0 && loc < 100) {
+        loc = loc * 1000 // Convert old level format to LOC
+      }
+      
+      const milestone = getContributorMilestone(loc)
+      return total + (milestone?.storageGB || 0)
     }
+    
+    if (role.startsWith('DISCORD_BOOSTER:')) {
+      // Format: DISCORD_BOOSTER:12 means 12 months of boosting
+      const months = parseInt(role.split(':')[1] || '0')
+      const milestone = getDiscordBoosterMilestone(months)
+      return total + (milestone?.storageGB || 0)
+    }
+    
     return total + (PERK_STORAGE_BONUS_GB[role as PerkRole] || 0)
   }, 0)
+}
+
+/**
+ * Get the highest contributor milestone achieved for a given LOC count
+ */
+export function getContributorMilestone(loc: number) {
+  // Find the highest milestone that the user has reached
+  const achieved = CONTRIBUTOR_MILESTONES.filter(m => loc >= m.loc)
+  return achieved.length > 0 ? achieved[achieved.length - 1] : null
+}
+
+/**
+ * Get the next contributor milestone to reach
+ */
+export function getNextContributorMilestone(loc: number) {
+  return CONTRIBUTOR_MILESTONES.find(m => loc < m.loc) || null
+}
+
+/**
+ * Get the highest Discord booster milestone achieved for a given duration in months
+ */
+export function getDiscordBoosterMilestone(months: number) {
+  const achieved = DISCORD_BOOSTER_MILESTONES.filter(m => months >= m.months)
+  return achieved.length > 0 ? achieved[achieved.length - 1] : null
+}
+
+/**
+ * Get the next Discord booster milestone to reach
+ */
+export function getNextDiscordBoosterMilestone(months: number) {
+  return DISCORD_BOOSTER_MILESTONES.find(m => months < m.months) || null
 }
 
 /**
@@ -32,6 +81,26 @@ export function calculateStorageBonusGB(perkRoles: string[]): number {
  */
 export function calculateDomainSlotBonus(perkRoles: string[]): number {
   return perkRoles.reduce((total, role) => {
+    if (role.startsWith('CONTRIBUTOR:')) {
+      // Format: CONTRIBUTOR:5000 means 5000 lines of code
+      let loc = parseInt(role.split(':')[1] || '0')
+      
+      // Legacy compatibility: old format was CONTRIBUTOR:{levels}
+      if (loc > 0 && loc < 100) {
+        loc = loc * 1000
+      }
+      
+      const milestone = getContributorMilestone(loc)
+      return total + (milestone?.domainSlots || 0)
+    }
+    
+    if (role.startsWith('DISCORD_BOOSTER:')) {
+      // Format: DISCORD_BOOSTER:12 means 12 months of boosting
+      const months = parseInt(role.split(':')[1] || '0')
+      const milestone = getDiscordBoosterMilestone(months)
+      return total + (milestone?.domainSlots || 0)
+    }
+    
     return total + (PERK_DOMAIN_BONUS[role as PerkRole] || 0)
   }, 0)
 }
@@ -94,7 +163,7 @@ export async function hasEarnedOneTimePerk(userId: string, perkRole: 'DISCORD_BO
 
 /**
  * Add perk role to user (deduplicates and prevents re-awarding one-time perks)
- * One-time perks: DISCORD_BOOSTER, CONTRIBUTOR (can only be earned once, though contributors can level up)
+ * One-time perks: DISCORD_BOOSTER, CONTRIBUTOR (can only be earned once, though can level up)
  */
 export async function addPerkRole(userId: string, perkRole: string) {
   const user = await prisma.user.findUnique({
@@ -103,15 +172,6 @@ export async function addPerkRole(userId: string, perkRole: string) {
   })
 
   const currentPerks = user?.perkRoles || []
-  
-  // Check if this is a one-time perk that's already been awarded
-  const isOneTimePerk = perkRole === PERK_ROLES.DISCORD_BOOSTER
-  const alreadyHasPerk = currentPerks.some(p => p.startsWith(perkRole.split(':')[0])) // Check base perk name
-  
-  if (isOneTimePerk && alreadyHasPerk) {
-    // User already has this one-time perk, don't add it again
-    return
-  }
   
   // For CONTRIBUTOR perks, allow leveling up but track if it's their first time
   if (perkRole.startsWith('CONTRIBUTOR')) {
@@ -125,7 +185,14 @@ export async function addPerkRole(userId: string, perkRole: string) {
     
     newPerks.push(perkRole)
     await updateUserPerks(userId, newPerks)
-  } else if (!currentPerks.includes(perkRole)) {
+  }
+  // For DISCORD_BOOSTER perks, allow tier updates
+  else if (perkRole.startsWith('DISCORD_BOOSTER')) {
+    const newPerks = currentPerks.filter(p => !p.startsWith('DISCORD_BOOSTER'))
+    newPerks.push(perkRole)
+    await updateUserPerks(userId, newPerks)
+  }
+  else if (!currentPerks.includes(perkRole)) {
     await updateUserPerks(userId, [...currentPerks, perkRole])
   }
 }
@@ -147,15 +214,15 @@ export async function removePerkRole(userId: string, perkRole: string) {
 /**
  * Recalculate contributor levels based on code contributions
  * Called periodically or on manual trigger
+ * Stores total LOC count in perk role for milestone calculation
  */
 export async function recalculateContributorLevel(
   userId: string,
   totalLinesOfCode: number
 ): Promise<void> {
-  const levels = Math.floor(totalLinesOfCode / GITHUB_CONTRIBUTION_THRESHOLD)
-
-  if (levels > 0) {
-    const perkRole = `CONTRIBUTOR:${levels}`
+  if (totalLinesOfCode >= GITHUB_CONTRIBUTION_THRESHOLD) {
+    // Store the LOC count for milestone calculation
+    const perkRole = `CONTRIBUTOR:${totalLinesOfCode}`
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { perkRoles: true },

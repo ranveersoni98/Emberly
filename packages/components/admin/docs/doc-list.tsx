@@ -85,10 +85,14 @@ function getStatusBadge(status: string) {
 
 function getCategoryBadge(category: string) {
     const colors: Record<string, string> = {
-        'HOSTING': 'bg-chart-1/20 text-chart-1',
-        'USERS': 'bg-chart-3/20 text-chart-3',
-        'INTEGRATIONS': 'bg-chart-4/20 text-chart-4',
-        'MAIN': 'bg-primary/20 text-primary',
+        'MAIN': 'bg-blue-500/20 text-blue-400',
+        'HOSTING': 'bg-purple-500/20 text-purple-400',
+        'USERS': 'bg-green-500/20 text-green-400',
+        'INTEGRATIONS': 'bg-orange-500/20 text-orange-400',
+        'API': 'bg-pink-500/20 text-pink-400',
+        'SECURITY': 'bg-red-500/20 text-red-400',
+        'TROUBLESHOOTING': 'bg-amber-500/20 text-amber-400',
+        'ADMINS': 'bg-indigo-500/20 text-indigo-400',
     }
     return (
         <Badge className={`${colors[category] || 'bg-muted/50 text-muted-foreground'} border-0 font-medium`}>

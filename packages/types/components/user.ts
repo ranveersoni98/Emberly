@@ -18,6 +18,10 @@ export interface User {
   randomizeFileUrls: boolean
   enableRichEmbeds: boolean
   urlId: string
+  vanityId?: string | null
+  bio?: string | null
+  website?: string | null
+  isProfilePublic?: boolean
   fileCount: number
   shortUrlCount: number
   defaultFileExpiration: 'DISABLED' | 'HOUR' | 'DAY' | 'WEEK' | 'MONTH' | null

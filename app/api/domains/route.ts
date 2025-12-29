@@ -5,6 +5,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/packages/lib/auth'
 import { prisma } from '@/packages/lib/database/prisma'
 import { loggers } from '@/packages/lib/logger'
+import { canAddCustomDomain, getPlanLimits, getUserDomainCount } from '@/packages/lib/storage/quota'
+import { calculateDomainSlotBonus } from '@/packages/lib/perks'
 
 const logger = loggers.domains || loggers.app
 import { createCustomHostname } from '@/packages/lib/cloudflare/client'
@@ -72,15 +74,36 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     })
 
+    // Calculate domain limits including plan, purchases, and perk bonuses
     try {
-      const subs = await prisma.subscription.findMany({ where: { userId: session.user.id, status: 'active' }, include: { product: true } })
-      const allowed = determineAllowedFromSubs(subs)
-      const purchases = await prisma.oneOffPurchase.findMany({ where: { userId: session.user.id, type: 'custom_domain' } })
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { perkRoles: true },
+      })
+      
+      const limits = await getPlanLimits(session.user.id)
+      const purchases = await prisma.oneOffPurchase.findMany({ 
+        where: { userId: session.user.id, type: 'custom_domain' } 
+      })
       const purchased = purchases.reduce((sum, p) => sum + (p.quantity || 0), 0)
-      const totalAllowed = allowed + purchased
+      const perkBonus = calculateDomainSlotBonus(user?.perkRoles || [])
+      
+      const base = limits.customDomainsLimit
+      const totalAllowed = base + purchased + perkBonus
       const used = domains.length
       const remaining = Math.max(0, totalAllowed - used)
-      return NextResponse.json({ domains, domainLimit: { allowed: totalAllowed, base: allowed, purchased, used, remaining } })
+      
+      return NextResponse.json({ 
+        domains, 
+        domainLimit: { 
+          allowed: totalAllowed, 
+          base, 
+          purchased, 
+          perkBonus,
+          used, 
+          remaining 
+        } 
+      })
     } catch (err) {
       logger.error('Error computing domain limits', err as Error)
       return NextResponse.json({ domains })
@@ -107,14 +130,9 @@ export async function POST(req: Request) {
     const existing = await prisma.customDomain.findUnique({ where: { domain } })
     if (existing) return new NextResponse('Domain already exists', { status: 409 })
 
-    // enforce per-user domain limits based on subscription and one-off purchases
-    const subs = await prisma.subscription.findMany({ where: { userId: session.user.id, status: 'active' }, include: { product: true } })
-    const allowed = determineAllowedFromSubs(subs)
-    const purchases = await prisma.oneOffPurchase.findMany({ where: { userId: session.user.id, type: 'custom_domain' } })
-    const purchased = purchases.reduce((sum, p) => sum + (p.quantity || 0), 0)
-    const totalAllowed = allowed + purchased
-    const usedCount = await prisma.customDomain.count({ where: { userId: session.user.id } })
-    if (usedCount >= totalAllowed) {
+    // Check if user can add more domains (includes plan limits, purchases, and perk bonuses)
+    const canAdd = await canAddCustomDomain(session.user.id)
+    if (!canAdd) {
       return new NextResponse('Domain limit reached', { status: 403 })
     }
 

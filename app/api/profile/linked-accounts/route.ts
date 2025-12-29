@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/packages/lib/auth'
 import { prisma } from '@/packages/lib/database/prisma'
 import { NextRequest, NextResponse } from 'next/server'
+import { sendTemplateEmail, AccountChangeEmail } from '@/packages/lib/emails'
 
 /**
  * GET /api/profile/linked-accounts
@@ -87,6 +88,36 @@ export async function DELETE(request: NextRequest) {
         await prisma.linkedAccount.delete({
             where: { id: linkedAccount.id },
         })
+
+        // Send account change email notification
+        if (session.user.email) {
+            const providerName = provider === 'github' ? 'GitHub' : 'Discord'
+            const accountName = linkedAccount.providerUsername || 'Unknown'
+            
+            const changes = [
+                `${providerName} account "${accountName}" was unlinked from your account`,
+                `Date: ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}`,
+            ]
+            
+            // Add warning about lost perks
+            if (provider === 'github') {
+                changes.push('Note: You may have lost Contributor perks associated with this account')
+            } else if (provider === 'discord') {
+                changes.push('Note: You may have lost Discord Booster perks associated with this account')
+            }
+            
+            sendTemplateEmail({
+                to: session.user.email,
+                subject: `${providerName} Account Unlinked from Your Emberly Account`,
+                template: AccountChangeEmail,
+                props: {
+                    userName: session.user.name || undefined,
+                    changes,
+                },
+            }).catch((error) => {
+                console.error('[DELETE /api/profile/linked-accounts] Failed to send email:', error)
+            })
+        }
 
         return NextResponse.json({ success: true, message: `${provider} account unlinked` })
     } catch (error) {
