@@ -6,6 +6,11 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
 
 ## [1.4.0] - 2025-12-29
 
+### Added
+- **Public User API Access** - Added `/api/users` to public paths for contribution stats visibility.
+  - Public profiles can now display GitHub contribution statistics without authentication.
+  - Ensures contribution data is accessible for public profile pages.
+
 ### Changed
 - **Environment Variable Consolidation** - Unified domain configuration to use existing `NEXT_PUBLIC_BASE_URL`.
   - Updated OAuth routes (GitHub and Discord) to use `NEXT_PUBLIC_BASE_URL` instead of deprecated `NEXT_PUBLIC_APP_URL`.
@@ -29,6 +34,19 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
   - Modal action buttons (Download as File, Copy All Codes) use default size instead of small for better tap targets.
   - Code display cards feature `break-all` on code text to handle long strings gracefully.
   - Warning banners and important notices use responsive text sizing for readability.
+- **GitHub Contributions API Optimization** - Improved reliability and performance of contribution statistics.
+  - Reduced commits fetched per repository from 10 to 5 to avoid GitHub API rate limiting.
+  - Added individual try-catch blocks around commit detail fetches to prevent single failures from breaking entire stats.
+  - Improved error handling with specific error logging per commit and repository.
+  - Stats calculation (additions, deletions, files changed) now properly accumulates even with partial failures.
+
+### Fixed
+- **Static Asset Loading Issues** - Resolved CSS and JavaScript not loading for some users.
+  - Updated middleware matcher to explicitly exclude all static asset types from authentication checks.
+  - Added exclusions for: CSS files (`.css`), JavaScript (`.js`), font files (`.woff`, `.woff2`, `.ttf`, `.otf`).
+  - Included `_next/webpack-hmr` exclusion for hot module replacement during development.
+  - Prevents middleware from intercepting and potentially blocking critical static resources.
+  - Root cause: Middleware regex was not comprehensive enough, causing some users to experience missing styles.
 
 ## [1.3.0] - 2025-12-29
 
