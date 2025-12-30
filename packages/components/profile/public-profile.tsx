@@ -689,7 +689,7 @@ export function PublicProfile({ user, storageBonus, domainBonus, linkedAccounts,
             {files.map((file) => (
               <a
                 key={file.id}
-                href={file.url}
+                href={`https://embrly.ca/${file.url}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block p-4 rounded-lg border border-primary/10 hover:border-primary/30 hover:bg-primary/5 transition-all group"

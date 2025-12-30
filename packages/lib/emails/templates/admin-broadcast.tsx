@@ -45,7 +45,7 @@ export function AdminBroadcastEmail({
             <Section className="mb-8">
               <Row>
                 <Column align="left">
-                  <Link href="https://emberly.dev" className="inline-block">
+                  <Link href="https://embrly.ca" className="inline-block">
                     <Text className="m-0 text-xl font-bold text-orange-600">
                       Emberly
                     </Text>
@@ -109,7 +109,7 @@ export function AdminBroadcastEmail({
                   <Text className="m-0 text-xs text-gray-600">
                     <strong>Questions?</strong> Please reach out to the Emberly team via{' '}
                     <Link
-                      href="https://emberly.dev/contact"
+                      href="https://embrly.ca/contact"
                       className="text-orange-600 no-underline font-semibold"
                     >
                       contact

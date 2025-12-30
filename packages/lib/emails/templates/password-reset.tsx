@@ -36,7 +36,7 @@ export function PasswordResetEmail({
             <Section className="mb-8">
               <Row>
                 <Column align="left">
-                  <Link href="https://emberly.dev" className="inline-block">
+                  <Link href="https://embrly.ca" className="inline-block">
                     <Text className="m-0 text-xl font-bold text-orange-600">
                       Emberly
                     </Text>
@@ -112,7 +112,7 @@ export function PasswordResetEmail({
                   <Text className="m-0 text-sm text-blue-900">
                     <strong>Didn't request this?</strong> If you didn't request a password reset, you can safely ignore this email or{' '}
                     <Link
-                      href="https://emberly.dev/contact"
+                      href="https://embrly.ca/contact"
                       className="text-blue-700 font-semibold no-underline"
                     >
                       contact support

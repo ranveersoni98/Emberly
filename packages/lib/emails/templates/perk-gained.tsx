@@ -28,7 +28,7 @@ export function PerkGainedEmail({
   perkDescription,
   perkIcon = '🎉',
   expiresAt,
-  viewUrl = 'https://emberly.dev/profile',
+  viewUrl = 'https://embrly.ca/dashboard/profile',
 }: PerkGainedEmailProps) {
   const expiryDate = expiresAt ? new Date(expiresAt).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -48,7 +48,7 @@ export function PerkGainedEmail({
             <Section className="mb-8">
               <Row>
                 <Column align="left">
-                  <Link href="https://emberly.dev" className="inline-block">
+                  <Link href="https://embrly.ca" className="inline-block">
                     <Text className="m-0 text-xl font-bold text-orange-600">
                       Emberly
                     </Text>

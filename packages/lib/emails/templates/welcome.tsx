@@ -33,7 +33,7 @@ export function WelcomeEmail({ name = 'there', verificationUrl }: WelcomeEmailPr
             <Section className="mb-8">
               <Row>
                 <Column align="left">
-                  <Link href="https://emberly.dev" className="inline-block">
+                  <Link href="https://embrly.ca" className="inline-block">
                     <Text className="m-0 text-xl font-bold text-orange-600">
                       Emberly
                     </Text>
@@ -114,7 +114,7 @@ export function WelcomeEmail({ name = 'there', verificationUrl }: WelcomeEmailPr
                   <Text className="m-0 text-sm text-gray-600">
                     Have questions?{' '}
                     <Link
-                      href="https://emberly.dev/contact"
+                      href="https://embrly.ca/contact"
                       className="text-orange-600 font-semibold no-underline"
                     >
                       Get in touch
@@ -138,14 +138,14 @@ export function WelcomeEmail({ name = 'there', verificationUrl }: WelcomeEmailPr
                 <Column align="center">
                   <Text className="m-0 mt-2 text-xs text-gray-400">
                     <Link
-                      href="https://emberly.dev/privacy"
+                      href="https://embrly.ca/legal/privacy"
                       className="text-gray-400 no-underline mr-3"
                     >
                       Privacy
                     </Link>
                     {' | '}
                     <Link
-                      href="https://emberly.dev/terms"
+                      href="https://embrly.ca/legal/terms"
                       className="text-gray-400 no-underline ml-3"
                     >
                       Terms
