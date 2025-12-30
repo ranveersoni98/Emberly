@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
         }
 
         // Exchange code for access token
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://emberly.ca'
         const tokenResponse = await fetch('https://discord.com/api/v10/oauth2/token', {
             method: 'POST',
             headers: {
