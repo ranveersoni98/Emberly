@@ -80,7 +80,7 @@ async function sendEmail(options: {
                 perkDescription: typeof variables.perkDescription === 'string' ? variables.perkDescription : undefined,
                 perkIcon: typeof variables.perkIcon === 'string' ? variables.perkIcon : '🎉',
                 expiresAt: typeof variables.expiresAt === 'string' ? variables.expiresAt : null,
-                viewUrl: typeof variables.viewUrl === 'string' ? variables.viewUrl : 'https://emberly.dev/profile',
+                viewUrl: typeof variables.viewUrl === 'string' ? variables.viewUrl : 'https://embrly.ca/dashboard/profile',
             },
             skipTracking: true,
         })

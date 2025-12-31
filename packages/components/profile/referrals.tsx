@@ -127,7 +127,7 @@ export function ProfileReferrals() {
   const shareReferral = async () => {
     if (!stats?.referralCode) return
 
-    const referralUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://emberly.dev'}/auth/register?ref=${stats.referralCode}`
+    const referralUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'}/auth/register?ref=${stats.referralCode}`
     const shareText = `Join Emberly and get $10 in billing credits! Use my referral link: ${referralUrl}`
 
     if (navigator.share) {
