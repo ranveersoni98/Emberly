@@ -1,20 +1,35 @@
 import { NextResponse } from 'next/server'
 
-export async function GET() {
-    try {
-        const res = await fetch('https://status.emberly.site/summary.json', {
-            // prevent Vercel/Next caching
-            cache: 'no-store',
-        })
+import { apiResponse, apiError } from '@/packages/lib/api/response'
+import { getFullStatusData, getStatusSummary } from '@/packages/lib/instatus'
 
-        if (!res.ok) {
-            return NextResponse.json({ error: 'Failed to fetch upstream' }, { status: 500 })
+/**
+ * GET /api/status
+ * Returns aggregated status data including summary, components, and active issues
+ */
+export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url)
+    const full = searchParams.get('full') === 'true'
+
+    try {
+        if (full) {
+            // Return full aggregated status data
+            const data = await getFullStatusData()
+            if (!data) {
+                return apiError('Failed to fetch status data', 503)
+            }
+            return apiResponse(data)
         }
 
-        const data = await res.json()
-        return NextResponse.json(data)
+        // Return just the summary for quick status checks
+        const summary = await getStatusSummary()
+        if (!summary) {
+            return apiError('Failed to fetch status summary', 503)
+        }
+
+        return apiResponse(summary)
     } catch (err) {
         console.error('Error fetching status:', err)
-        return NextResponse.json({ error: 'Internal' }, { status: 500 })
+        return apiError('Internal server error', 500)
     }
 }

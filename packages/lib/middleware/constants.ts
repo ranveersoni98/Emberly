@@ -56,6 +56,8 @@ export const PUBLIC_PATHS = [
   '/auth/forgot',
   '/auth/magic',
   '/auth/reset',
+  '/setup',
+  '/api/setup'
 ]
 
 export const SETUP_PATHS = ['/setup', '/api/setup']

@@ -160,6 +160,7 @@ export async function PUT(req: Request) {
     if (typeof body.enableRichEmbeds === 'boolean')
       updateData.enableRichEmbeds = body.enableRichEmbeds
     if (typeof body.theme === 'string') updateData.theme = body.theme
+    if (body.customColors) updateData.customColors = body.customColors
     if (body.defaultFileExpiration)
       updateData.defaultFileExpiration = body.defaultFileExpiration
     if (body.defaultFileExpirationAction)

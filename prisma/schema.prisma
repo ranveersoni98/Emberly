@@ -14,6 +14,7 @@ model User {
   emailVerified         DateTime?
   image                 String?
   theme                 String?
+  customColors          Json?     // Theme color customizations
   twoFactorEnabled      Boolean   @default(false)
   twoFactorSecret       String?
   preferredUploadDomain String?

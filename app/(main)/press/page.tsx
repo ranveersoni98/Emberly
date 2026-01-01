@@ -48,8 +48,8 @@ const PRESS_RESOURCES = [
         description: 'How to properly represent Emberly in articles, presentations, and media.',
         href: '/press/media-kit#guidelines',
         label: 'View guidelines',
-        color: 'text-blue-500',
-        bg: 'bg-blue-500/10',
+        color: 'text-accent-foreground',
+        bg: 'bg-accent/50',
     },
     {
         icon: Palette,
@@ -58,8 +58,8 @@ const PRESS_RESOURCES = [
         href: 'https://github.com/EmberlyOSS/Website/releases/latest',
         label: 'Download ZIP',
         external: true,
-        color: 'text-purple-500',
-        bg: 'bg-purple-500/10',
+        color: 'text-muted-foreground',
+        bg: 'bg-muted/50',
     },
 ]
 
@@ -288,7 +288,7 @@ export default function PressPage() {
                                 </p>
                             </div>
                             <div className="flex items-center gap-6">
-                                <div className="p-6 rounded-2xl bg-gradient-to-br from-background via-muted to-background border border-border/50">
+                                <div className="p-6 rounded-2xl bg-gradient-to-br from-background via-muted/50 to-background border border-border/50">
                                     <Image
                                         src="/icon.svg"
                                         alt="Emberly Logo"
@@ -296,10 +296,10 @@ export default function PressPage() {
                                         height={64}
                                     />
                                 </div>
-                                <div className="p-6 rounded-2xl bg-gradient-to-br from-white/80 via-background to-white border border-border/50">
+                                <div className="p-6 rounded-2xl bg-gradient-to-br from-card via-accent/20 to-card border border-border/50">
                                     <Image
                                         src="/icon.svg"
-                                        alt="Emberly Logo Light"
+                                        alt="Emberly Logo Alt"
                                         width={64}
                                         height={64}
                                     />

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 
 import { Icons } from '@/components/shared/icons'
-import { ThemeCustomizer } from '@/components/theme/theme-customizer'
+import { AppearancePanel } from '@/components/appearance/appearance-panel'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -419,6 +419,14 @@ export function SettingsManager() {
 	const handleCustomColorsChange = (colors: Partial<ColorConfig>) => {
 		handleSettingChange('appearance', {
 			customColors: colors,
+		})
+	}
+
+	const handleThemePresetChange = (themeId: string, backgroundEffect: string, animationSpeed: string) => {
+		handleSettingChange('appearance', {
+			theme: themeId,
+			backgroundEffect,
+			animationSpeed,
 		})
 	}
 
@@ -1069,9 +1077,22 @@ export function SettingsManager() {
 									) && <ChangeIndicator />}
 								</CardHeader>
 								<CardContent>
-									<ThemeCustomizer
-										onColorChange={handleCustomColorsChange}
-										initialColors={workingConfig?.settings.appearance.customColors}
+									<AppearancePanel
+										onSaveAsSystemTheme={async (themeId, colors) => {
+											const res = await fetch('/api/admin/themes/save', {
+												method: 'POST',
+												headers: { 'Content-Type': 'application/json' },
+												body: JSON.stringify({ themeId, colors }),
+											})
+											if (res.ok) {
+												const data = await res.json()
+												toast({ title: 'Success', description: data.message })
+												return true
+											} else {
+												toast({ title: 'Error', description: 'Failed to save system theme', variant: 'destructive' })
+												return false
+											}
+										}}
 									/>
 								</CardContent>
 							</Card>
