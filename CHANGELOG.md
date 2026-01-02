@@ -4,12 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on "Keep a Changelog" and follows [Semantic Versioning](https://semver.org/).
 
-## [1.4.0] - 2025-12-29
+## [1.4.0] - 2026-01-01
 
 ### Added
 - **Public User API Access** - Added `/api/users` to public paths for contribution stats visibility.
   - Public profiles can now display GitHub contribution statistics without authentication.
   - Ensures contribution data is accessible for public profile pages.
+- **Custom Status Page System** - Comprehensive system status page powered by Instatus API integration.
+  - New `/status` page displaying real-time service health, incidents, and maintenance windows.
+  - TypeScript types for full Instatus API coverage (`packages/types/instatus.ts`): `StatusSummary`, `StatusComponent`, `Incident`, `Maintenance`, and related interfaces.
+  - Instatus client library (`packages/lib/instatus/index.ts`) with public and authenticated API support.
+  - Supports both public API (`/summary.json`, `/v2/components.json`) and authenticated API (`/v2/:page_id/...`) with Bearer token.
+  - Environment variables: `INSTATUS_API_KEY`, `INSTATUS_PAGE_ID`, `INSTATUS_STATUS_URL` for configuration.
+  - API routes: `/api/status`, `/api/status/components`, `/api/status/incidents`, `/api/status/maintenances`.
+  - Status components: `StatusBadge`, `StatusIcon`, `StatusHeader`, `ComponentsList`, `ActiveIncidentsPanel`, `ActiveMaintenancesPanel`, `IncidentHistory`, `MaintenanceHistory`, `UptimeDisplay`, `StatusPageSkeleton`.
+  - Tabbed interface organizing Components, Incidents, and Maintenances with count badges.
+  - Glass-morphism styling consistent with rest of site using `GlassCard` components.
+  - Expandable incident/maintenance cards showing update timelines with HTML message support.
+  - Parent-child component hierarchy built dynamically from flat API responses using `group.id` references.
+  - Auto-refresh capability with manual refresh button and last-updated timestamps.
+  - Responsive design with mobile-optimized tab navigation.
 
 ### Changed
 - **Environment Variable Consolidation** - Unified domain configuration to use existing `NEXT_PUBLIC_BASE_URL`.
@@ -39,6 +53,10 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
   - Added individual try-catch blocks around commit detail fetches to prevent single failures from breaking entire stats.
   - Improved error handling with specific error logging per commit and repository.
   - Stats calculation (additions, deletions, files changed) now properly accumulates even with partial failures.
+- **Press Pages Theme Compatibility** - Fixed hardcoded colors to respect active theme.
+  - Press page hero section now uses theme variables (`text-foreground`, `text-primary`) instead of hardcoded colors.
+  - Media kit color palette dynamically pulls from CSS variables to display actual theme colors.
+  - Color swatches show live theme values with proper hex code extraction from computed styles.
 
 ### Fixed
 - **Authentication System Domain Configuration** - Resolved production OAuth redirects incorrectly using `https://localhost:3000`.

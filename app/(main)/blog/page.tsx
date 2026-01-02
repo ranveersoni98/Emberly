@@ -42,29 +42,29 @@ export default async function BlogListPage() {
 
                     {/* Featured badge for first post */}
                     {index === 0 && (
-                      <div className="absolute top-4 right-4">
-                        <Badge className="bg-primary/20 text-primary border-0 font-medium">
+                      <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
+                        <Badge className="bg-primary/20 text-primary border-0 font-medium text-xs">
                           Latest
                         </Badge>
                       </div>
                     )}
 
-                    <div className="relative p-6">
-                      <div className="space-y-3">
+                    <div className="relative p-4 sm:p-6">
+                      <div className="space-y-2 sm:space-y-3">
                         {/* Title */}
-                        <h2 className="text-xl font-semibold tracking-tight group-hover:text-primary transition-colors pr-16">
+                        <h2 className="text-lg sm:text-xl font-semibold tracking-tight group-hover:text-primary transition-colors pr-16 sm:pr-20">
                           {p.title}
                         </h2>
 
                         {/* Excerpt */}
                         {p.excerpt && (
-                          <p className="text-muted-foreground line-clamp-2">
+                          <p className="text-sm sm:text-base text-muted-foreground line-clamp-2">
                             {p.excerpt}
                           </p>
                         )}
 
                         {/* Meta info */}
-                        <div className="flex flex-wrap items-center gap-4 pt-2">
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4 pt-2">
                           {/* Author */}
                           {p.author && (
                             <div className="flex items-center gap-2">
@@ -72,14 +72,14 @@ export default async function BlogListPage() {
                                 <img
                                   src={p.author.image}
                                   alt={p.author.name || 'Author'}
-                                  className="h-6 w-6 rounded-full ring-2 ring-white/10"
+                                  className="h-5 w-5 sm:h-6 sm:w-6 rounded-full ring-2 ring-white/10"
                                 />
                               ) : (
-                                <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
+                                <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
                                   {(p.author.name || 'A').charAt(0)}
                                 </div>
                               )}
-                              <span className="text-sm text-muted-foreground">
+                              <span className="text-xs sm:text-sm text-muted-foreground">
                                 {p.author.name}
                               </span>
                             </div>
@@ -87,10 +87,10 @@ export default async function BlogListPage() {
 
                           {/* Date */}
                           {p.publishedAt && (
-                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                              <Calendar className="h-3.5 w-3.5" />
+                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                              <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                               <span>{format(new Date(p.publishedAt), 'MMM d, yyyy')}</span>
-                              <span className="text-muted-foreground/60">
+                              <span className="text-muted-foreground/60 hidden sm:inline">
                                 ({formatDistanceToNow(new Date(p.publishedAt), { addSuffix: true })})
                               </span>
                             </div>
@@ -98,10 +98,10 @@ export default async function BlogListPage() {
                         </div>
                       </div>
 
-                      {/* Read more indicator */}
-                      <div className="absolute bottom-6 right-6 flex items-center gap-1 text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Read more indicator - visible on mobile, hover on desktop */}
+                      <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-primary mt-4 sm:mt-0 sm:absolute sm:bottom-6 sm:right-6 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <span>Read more</span>
-                        <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                        <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 group-hover:translate-x-1 transition-transform" />
                       </div>
                     </div>
                   </article>

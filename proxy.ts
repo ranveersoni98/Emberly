@@ -6,6 +6,7 @@ import { getToken } from 'next-auth/jwt'
 import { checkAuthentication } from './packages/lib/middleware/auth-checker'
 import { handleBotRequest } from './packages/lib/middleware/bot-handler'
 import { ADMIN_PATHS, PUBLIC_PATHS, SUPERADMIN_PATHS } from './packages/lib/middleware/constants'
+import { hasPermission, Permission } from './packages/lib/permissions'
 
 // Global store for login context (IP, UserAgent, Geo)
 // Used to pass request context to NextAuth callbacks
@@ -200,7 +201,7 @@ export async function proxy(request: NextRequest) {
     const auth = await ensureAuthenticated()
     if (auth instanceof NextResponse) return auth
     const role = auth.token?.role
-    if (role !== 'SUPERADMIN') {
+    if (!hasPermission(role as any, Permission.PERFORM_SUPERADMIN_ACTIONS)) {
       return NextResponse.redirect(new URL('/dashboard', baseUrl))
     }
   }
@@ -211,7 +212,7 @@ export async function proxy(request: NextRequest) {
     if (auth instanceof NextResponse) return auth
     const role = auth.token?.role
 
-    if (role !== 'ADMIN' && role !== 'SUPERADMIN') {
+    if (!hasPermission(role as any, Permission.ACCESS_ADMIN_PANEL)) {
       return NextResponse.redirect(new URL('/dashboard', baseUrl))
     }
   }

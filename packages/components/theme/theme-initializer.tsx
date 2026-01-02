@@ -1,16 +1,34 @@
 import { getConfig } from '@/packages/lib/config'
 
-export async function ThemeInitializer() {
-  const config = await getConfig()
-  const customColors = config.settings.appearance.customColors || {}
-  const themeName = config.settings.appearance.theme || ''
+type ThemeInitializerProps = {
+  userTheme?: string | null
+  userCustomColors?: Record<string, string> | null
+}
 
-  const cssVariables = Object.entries(customColors)
-    .map(([key, value]) => {
-      const cssKey = key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
-      return `--${cssKey}: ${value};`
-    })
-    .join('\n')
+export async function ThemeInitializer({ userTheme, userCustomColors }: ThemeInitializerProps) {
+  let cssVariables: string
+  let themeName: string
+
+  if (userTheme) {
+    const customColors = userCustomColors || {}
+    cssVariables = Object.entries(customColors)
+      .map(([key, value]) => {
+        const cssKey = key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
+        return `--${cssKey}: ${value};`
+      })
+      .join('\n')
+    themeName = userTheme
+  } else {
+    const config = await getConfig()
+    const customColors = config.settings.appearance.customColors || {}
+    themeName = config.settings.appearance.theme || ''
+    cssVariables = Object.entries(customColors)
+      .map(([key, value]) => {
+        const cssKey = key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
+        return `--${cssKey}: ${value};`
+      })
+      .join('\n')
+  }
 
   return (
     <>
@@ -29,7 +47,7 @@ export async function ThemeInitializer() {
         }}
       />
       <script
-        // ensure system/config theme is present as a data attribute on the client
+        // ensure system/config or user theme is present as a data attribute on the client
         dangerouslySetInnerHTML={{
           __html: `try{document.documentElement.setAttribute('data-theme', ${JSON.stringify(
             themeName

@@ -124,7 +124,7 @@ export async function POST(req: Request) {
           },
         },
         appearance: {
-          theme: 'dark',
+          theme: 'default-dark',
           favicon: null,
           customColors: {},
         },

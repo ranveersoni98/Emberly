@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/packages/lib/auth'
 import { sessionCache } from '@/packages/lib/cache/session-cache'
 import { prisma } from '@/packages/lib/database/prisma'
+import { hasPermission, Permission } from '@/packages/lib/permissions'
 
 export type AuthenticatedUser = {
   id: string
@@ -156,10 +157,7 @@ export async function requireAuth(req: Request) {
 export async function requireAdmin() {
   const session = await getServerSession(authOptions)
 
-  if (
-    !session?.user ||
-    (session.user.role !== 'ADMIN' && session.user.role !== 'SUPERADMIN')
-  ) {
+  if (!session?.user || !hasPermission(session.user.role as any, Permission.ACCESS_ADMIN_PANEL)) {
     return {
       response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
       user: null,
@@ -172,7 +170,7 @@ export async function requireAdmin() {
 export async function requireSuperAdmin() {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user || session.user.role !== 'SUPERADMIN') {
+  if (!session?.user || !hasPermission(session.user.role as any, Permission.PERFORM_SUPERADMIN_ACTIONS)) {
     return {
       response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
       user: null,

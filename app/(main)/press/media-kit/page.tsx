@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -62,12 +65,14 @@ const BRAND_ASSETS = [
     },
 ]
 
-const BRAND_COLORS = [
-    { name: 'Ember', value: '#F97316', rgb: '249, 115, 22', usage: 'Primary brand color, CTAs' },
-    { name: 'Amber', value: '#F59E0B', rgb: '245, 158, 11', usage: 'Accents, highlights' },
-    { name: 'Midnight', value: '#0F172A', rgb: '15, 23, 42', usage: 'Dark backgrounds' },
-    { name: 'Slate', value: '#64748B', rgb: '100, 116, 139', usage: 'Body text, muted' },
-    { name: 'Cream', value: '#F8FAFC', rgb: '248, 250, 252', usage: 'Light backgrounds' },
+// Theme-aware colors that pull from CSS variables
+const THEME_COLORS = [
+    { name: 'Primary', cssVar: '--primary', usage: 'Brand color, CTAs, links' },
+    { name: 'Accent', cssVar: '--accent', usage: 'Highlights, badges' },
+    { name: 'Background', cssVar: '--background', usage: 'Page backgrounds' },
+    { name: 'Card', cssVar: '--card', usage: 'Card surfaces' },
+    { name: 'Muted', cssVar: '--muted', usage: 'Subtle backgrounds' },
+    { name: 'Foreground', cssVar: '--foreground', usage: 'Primary text' },
 ]
 
 const TYPOGRAPHY = [
@@ -104,13 +109,6 @@ const CONTACT_POINTS = [
 ]
 
 const KIT_DOWNLOAD = 'https://github.com/EmberlyOSS/Website/releases/latest'
-
-import { buildPageMetadata } from '@/packages/lib/embeds/metadata'
-
-export const metadata = buildPageMetadata({
-    title: 'Media Kit',
-    description: 'Brand assets, logos, colors, and guidelines for press and partners.',
-})
 
 export default function MediaKitPage() {
     return (
@@ -172,30 +170,12 @@ export default function MediaKitPage() {
                     <div className="p-8">
                         <div className="flex items-center gap-2 mb-6">
                             <Palette className="h-5 w-5 text-primary" />
-                            <h2 className="text-xl font-semibold">Color Palette</h2>
+                            <h2 className="text-xl font-semibold">Theme Color Palette</h2>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                            {BRAND_COLORS.map((color) => (
-                                <div
-                                    key={color.name}
-                                    className="group rounded-xl border border-border/50 bg-background/30 overflow-hidden"
-                                >
-                                    <div
-                                        className="h-24 flex items-end justify-start p-3"
-                                        style={{ backgroundColor: color.value }}
-                                    >
-                                        <span className={`text-xs font-mono ${color.name === 'Midnight' ? 'text-white/70' : 'text-black/50'}`}>
-                                            {color.value}
-                                        </span>
-                                    </div>
-                                    <div className="p-3">
-                                        <div className="font-medium text-sm">{color.name}</div>
-                                        <div className="text-xs text-muted-foreground mt-0.5">RGB: {color.rgb}</div>
-                                        <div className="text-xs text-muted-foreground mt-1">{color.usage}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        <p className="text-sm text-muted-foreground mb-6">
+                            Colors adapt to the active theme. These are the current theme&apos;s colors.
+                        </p>
+                        <ThemeColorPalette />
                     </div>
                 </GlassCard>
 
@@ -361,15 +341,16 @@ type AssetPreviewProps = {
 function AssetPreview({ variant, theme }: AssetPreviewProps) {
     const baseClasses = 'flex h-40 w-full items-center justify-center rounded-xl border border-border/50'
 
+    // Use theme-aware backgrounds that adapt to the active theme
     const background =
         theme === 'dark'
-            ? 'bg-gradient-to-br from-background via-muted to-background'
-            : 'bg-gradient-to-br from-slate-100 via-white to-slate-50'
+            ? 'bg-gradient-to-br from-background via-muted/30 to-background'
+            : 'bg-gradient-to-br from-card via-accent/10 to-card'
 
     if (variant === 'wordmark') {
         return (
             <div className={`${baseClasses} ${background}`}>
-                <span className={`text-3xl font-bold tracking-wide ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                <span className={`text-3xl font-bold tracking-wide ${theme === 'dark' ? 'text-foreground' : 'text-foreground'}`}>
                     EMBERLY
                 </span>
             </div>
@@ -387,8 +368,8 @@ function AssetPreview({ variant, theme }: AssetPreviewProps) {
     if (variant === 'mono') {
         return (
             <div className={`${baseClasses} ${background}`}>
-                <div className="rounded-full border border-dashed border-slate-300/70 p-6">
-                    <Image src="/icon.svg" alt="Emberly monochrome" width={48} height={48} className={theme === 'light' ? '' : 'invert'} />
+                <div className="rounded-full border border-dashed border-border p-6">
+                    <Image src="/icon.svg" alt="Emberly monochrome" width={48} height={48} className={theme === 'light' ? 'dark:invert-0' : ''} />
                 </div>
             </div>
         )
@@ -399,10 +380,133 @@ function AssetPreview({ variant, theme }: AssetPreviewProps) {
         <div className={`${baseClasses} ${background}`}>
             <div className="flex items-center gap-3">
                 <Image src="/icon.svg" alt="Emberly logo" width={48} height={48} />
-                <span className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                <span className="text-2xl font-bold text-foreground">
                     Emberly
                 </span>
             </div>
+        </div>
+    )
+}
+
+// Helper to convert HSL CSS variable to hex
+function hslToHex(h: number, s: number, l: number): string {
+    s /= 100
+    l /= 100
+    const a = s * Math.min(l, 1 - l)
+    const f = (n: number) => {
+        const k = (n + h / 30) % 12
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+        return Math.round(255 * color).toString(16).padStart(2, '0')
+    }
+    return `#${f(0)}${f(8)}${f(4)}`.toUpperCase()
+}
+
+// Helper to get luminance for contrast calculation
+function getLuminance(hex: string): number {
+    const rgb = hex.replace('#', '').match(/.{2}/g)?.map(x => parseInt(x, 16) / 255) || [0, 0, 0]
+    const [r, g, b] = rgb.map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function ThemeColorPalette() {
+    const [colors, setColors] = useState<{ name: string; hex: string; rgb: string; usage: string }[]>([])
+    const [, forceUpdate] = useState(0)
+
+    useEffect(() => {
+        const updateColors = () => {
+            const root = document.documentElement
+            const computed = getComputedStyle(root)
+
+            const resolved = THEME_COLORS.map(color => {
+                const raw = computed.getPropertyValue(color.cssVar).trim()
+                // HSL format: "210 40% 98%" or similar
+                const parts = raw.split(/\s+/).map(p => parseFloat(p))
+                let hex = '#000000'
+                let rgb = '0, 0, 0'
+
+                if (parts.length >= 3) {
+                    hex = hslToHex(parts[0], parts[1], parts[2])
+                    // Convert hex to RGB
+                    const r = parseInt(hex.slice(1, 3), 16)
+                    const g = parseInt(hex.slice(3, 5), 16)
+                    const b = parseInt(hex.slice(5, 7), 16)
+                    rgb = `${r}, ${g}, ${b}`
+                }
+
+                return {
+                    name: color.name,
+                    hex,
+                    rgb,
+                    usage: color.usage,
+                }
+            })
+
+            setColors(resolved)
+        }
+
+        // Initial update
+        updateColors()
+
+        // Watch for theme changes via class or attribute changes on html element
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.attributeName === 'class' || mutation.attributeName === 'style' || mutation.attributeName === 'data-theme') {
+                    // Small delay to let CSS variables update
+                    setTimeout(updateColors, 50)
+                    break
+                }
+            }
+        })
+
+        observer.observe(document.documentElement, { attributes: true })
+
+        return () => observer.disconnect()
+    }, [])
+
+    if (colors.length === 0) {
+        return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                {THEME_COLORS.map(color => (
+                    <div key={color.name} className="rounded-xl border border-border/50 bg-background/30 overflow-hidden animate-pulse">
+                        <div className="h-24 bg-muted" />
+                        <div className="p-3 space-y-2">
+                            <div className="h-4 bg-muted rounded w-16" />
+                            <div className="h-3 bg-muted rounded w-24" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )
+    }
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            {colors.map(color => {
+                const isDark = getLuminance(color.hex) < 0.5
+                return (
+                    <div
+                        key={color.name}
+                        className="group rounded-xl border border-border/50 bg-background/30 overflow-hidden"
+                    >
+                        <div
+                            className="h-24 flex items-end justify-start p-3"
+                            style={{ backgroundColor: color.hex }}
+                        >
+                            <span
+                                className="text-xs font-mono"
+                                style={{ color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }}
+                            >
+                                {color.hex}
+                            </span>
+                        </div>
+                        <div className="p-3">
+                            <div className="font-medium text-sm">{color.name}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">RGB: {color.rgb}</div>
+                            <div className="text-xs text-muted-foreground mt-1">{color.usage}</div>
+                        </div>
+                    </div>
+                )
+            })}
         </div>
     )
 }
