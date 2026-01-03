@@ -91,7 +91,7 @@ export default async function RootLayout({
       <body suppressHydrationWarning className={`${!hasCustomFont ? inter.variable + ' font-sans' : ''} min-h-screen flex flex-col`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme={config.settings.appearance.theme}
+          defaultTheme={config.settings.appearance.systemThemes}
           enableSystem
           disableTransitionOnChange
         >

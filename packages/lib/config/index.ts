@@ -63,13 +63,6 @@ export const configSchema = z.object({
       enableBackgroundEffect: z.boolean().optional().default(false),
       favicon: z.string().nullable().optional().default(null),
       customColors: z.record(z.string()).optional().default({}),
-      systemThemes: z.record(z.object({
-        name: z.string(),
-        colors: z.record(z.string()),
-        createdAt: z.string(),
-        createdBy: z.string().optional(),
-        updatedAt: z.string(),
-      })).optional().default({}),
     }).passthrough().optional().default({}),
     advanced: z.object({
       customCSS: z.string().optional().default(''),
@@ -190,8 +183,8 @@ export async function initConfig(): Promise<EmberlyConfig> {
 function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
   const result = { ...target }
   for (const key in source) {
-    if (source[key] !== undefined && source[key] !== null) {
-      if (typeof source[key] === 'object' && !Array.isArray(source[key])) {
+    if (source[key] !== undefined) {
+      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
         result[key] = deepMerge(target[key] || {}, source[key] as any)
       } else {
         result[key] = source[key] as any
