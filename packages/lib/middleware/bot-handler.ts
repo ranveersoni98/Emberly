@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { prisma } from '@/packages/lib/database/prisma'
 import { FILE_URL_PATTERN, VIDEO_EXTENSIONS } from './constants'
 
 export function isBotRequest(userAgent: string): boolean {
@@ -14,7 +15,7 @@ export function isBotRequest(userAgent: string): boolean {
   )
 }
 
-export function handleBotRequest(request: NextRequest): NextResponse | null {
+export async function handleBotRequest(request: NextRequest): Promise<NextResponse | null> {
   const userAgent = request.headers.get('user-agent')?.toLowerCase() || ''
 
   if (
@@ -26,22 +27,47 @@ export function handleBotRequest(request: NextRequest): NextResponse | null {
 
   const fileExt = request.nextUrl.pathname.split('.').pop()?.toLowerCase()
   const isVideo = fileExt && VIDEO_EXTENSIONS.includes(fileExt)
-  const isDirectPath = request.nextUrl.pathname.endsWith('/direct')
   const isRawPath = request.nextUrl.pathname.endsWith('/raw')
+  const isDirectPath = request.nextUrl.pathname.endsWith('/direct')
 
-  // For videos: Let bots access the page to get metadata with og:video tags
-  // The og:video tags point to the /raw URL which Discord/Twitter will then fetch
-  if (isVideo) {
+  // Extract user ID and filename from pathname: /[userUrlId]/[filename]
+  const pathMatch = request.nextUrl.pathname.match(/^\/([^/]+)\/([^/]+)/)
+  if (!pathMatch) {
     return NextResponse.next()
   }
 
-  // For non-video files (images, etc): Redirect bots directly to /raw
-  // so they get the actual file content for embedding
-  if (!isRawPath && !isDirectPath) {
-    const url = new URL(request.url)
-    url.pathname = `${url.pathname}/raw`
-    return NextResponse.redirect(url)
+  const [, userUrlId, filename] = pathMatch
+  const urlPath = `/${userUrlId}/${filename}`
+
+  // Check user's enableRichEmbeds setting
+  let enableRichEmbeds = true // default to true
+  try {
+    const file = await prisma.file.findUnique({
+      where: { urlPath },
+      select: {
+        user: {
+          select: { enableRichEmbeds: true },
+        },
+      },
+    })
+    if (file?.user) {
+      enableRichEmbeds = file.user.enableRichEmbeds !== false
+    }
+  } catch {
+    // If lookup fails, default to allowing rich embeds
+    enableRichEmbeds = true
   }
 
-  return NextResponse.next()
+  if (enableRichEmbeds) {
+    // Rich embeds enabled: serve the page with branded metadata
+    return NextResponse.next()
+  } else {
+    // Rich embeds disabled: redirect to raw file
+    if (!isRawPath && !isDirectPath) {
+      const url = new URL(request.url)
+      url.pathname = `${url.pathname}/raw`
+      return NextResponse.redirect(url)
+    }
+    return NextResponse.next()
+  }
 }
