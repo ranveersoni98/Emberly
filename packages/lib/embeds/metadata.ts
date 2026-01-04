@@ -264,4 +264,3 @@ export function buildPageMetadata(options: { title: string; description?: string
     description: options.description || 'Emberly focuses on a simple, predictable file hosting experience with features that matter: expirations, custom domains, usage controls, and privacy-first defaults.',
   }
 }
-
