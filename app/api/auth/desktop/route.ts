@@ -126,6 +126,7 @@ export async function POST(req: Request) {
       const isValidCode = authenticator.check(twoFactorCode, user.twoFactorSecret)
       
       if (!isValidCode) {
+        // TODO: Also check recovery codes if needed
         logger.warn('Desktop login failed - invalid 2FA code', { userId: user.id })
         return NextResponse.json(
           { success: false, error: 'Invalid two-factor code' },
@@ -134,7 +135,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Check email verification
+    // Check email verification (optional - you may want to allow unverified users)
     // if (!user.emailVerified) {
     //   return NextResponse.json(
     //     { success: false, error: 'Please verify your email first' },
