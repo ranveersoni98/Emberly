@@ -39,7 +39,12 @@ export async function POST(req: Request) {
     userId = user?.id
     if (response) return response
 
-    const formData = await req.formData()
+    let formData: FormData
+    try {
+      formData = await req.formData()
+    } catch {
+      return apiError('Failed to parse request body as multipart/form-data. Ensure Content-Type is multipart/form-data with a valid boundary.', HTTP_STATUS.BAD_REQUEST)
+    }
 
     const uploadedFile = formData.get('file') as File
     const requestedDomainRaw = (formData.get('domain') as string) || null
