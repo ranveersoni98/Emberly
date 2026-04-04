@@ -80,6 +80,11 @@ async function getContributors() {
     if (pat) {
         headers.Authorization = `token ${pat}`
     }
+    const excludedRepos = new Set(
+        (["premid", "activities", "statuspage", "peppermint"])
+            .map((repo) => repo.trim().toLowerCase())
+            .filter(Boolean)
+    )
 
     try {
         const [membersRes, reposRes] = await Promise.all([
@@ -97,7 +102,9 @@ async function getContributors() {
         const reposJson = reposRes.ok ? await reposRes.json() : []
 
         const repoNames = Array.isArray(reposJson)
-            ? reposJson.map((r: any) => r.name).filter(Boolean)
+            ? reposJson.map((r: any) => r.name)
+                .filter((name: any) => typeof name === 'string' && name.trim().length > 0)
+                .filter((name: string) => !excludedRepos.has(name.toLowerCase()))
             : []
 
         const contribPromises = repoNames.map((name: string) =>
