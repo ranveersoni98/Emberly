@@ -158,12 +158,15 @@ export function useUserManagement(options: UseUserManagementOptions = {}) {
     async (userId: string, formData: UserFormData) => {
       try {
         setIsLoading(true)
+        // Strip empty password string so the API schema's min(8) is not triggered
+        const payload: Record<string, unknown> = { ...formData, id: userId }
+        if (!payload.password) delete payload.password
         const response = await fetch('/api/users', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ ...formData, id: userId }),
+          body: JSON.stringify(payload),
         })
 
         if (!response.ok) {

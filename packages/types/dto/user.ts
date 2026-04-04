@@ -23,7 +23,7 @@ export const UpdateUserSchema = z.object({
   id: z.string(),
   name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name too long').trim().optional(),
   email: z.string().email('Invalid email address').max(255, 'Email too long').trim().optional(),
-  password: z.string().min(8).optional(),
+  password: z.string().min(8).optional().or(z.literal('').transform(() => undefined)),
   role: z.enum(['SUPERADMIN', 'ADMIN', 'USER']).optional(),
   urlId: z
     .string()
