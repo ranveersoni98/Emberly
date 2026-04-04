@@ -13,11 +13,10 @@ const LOCATIONS = [
 
 const FEATURES = [
     'S3-compatible API',
-    'Unlimited buckets per subscription',
     'No per-bucket charges',
     'Removes all platform storage & upload limits',
     'Dedicated credentials emailed within 24 hours',
-    'Backups included — available on request',
+    'Backups included available on request',
 ]
 
 interface Props {
