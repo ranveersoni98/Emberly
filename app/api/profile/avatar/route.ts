@@ -7,6 +7,7 @@ import { prisma } from '@/packages/lib/database/prisma'
 import { loggers } from '@/packages/lib/logger'
 import { S3StorageProvider, getStorageProvider } from '@/packages/lib/storage'
 import { bytesToMB } from '@/packages/lib/utils'
+import { getConfig } from '@/packages/lib/config'
 
 const logger = loggers.users
 

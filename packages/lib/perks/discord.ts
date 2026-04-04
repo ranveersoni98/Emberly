@@ -7,22 +7,30 @@ import { addPerkRole, removePerkRole } from './index'
 import { PERK_ROLES } from './constants'
 import { events } from '@/packages/lib/events'
 import { prisma } from '@/packages/lib/database/prisma'
+import { getIntegrations } from '@/packages/lib/config'
 
 const logger = loggers.api
 
-const DISCORD_SERVER_ID = process.env.DISCORD_SERVER_ID || 'DISCORD_SERVER_ID'
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || ''
-const DISCORD_SUPPORTER_ROLE_ID = process.env.DISCORD_SUPPORTER_ROLE || ''
 const DISCORD_API_VERSION = '10'
 const DISCORD_API_BASE = `https://discord.com/api/v${DISCORD_API_VERSION}`
+
+async function getDiscordConfig() {
+  const integrations = await getIntegrations()
+  return {
+    serverId: integrations.discord?.serverId || process.env.DISCORD_SERVER_ID || '',
+    botToken: integrations.discord?.botToken || process.env.DISCORD_BOT_TOKEN || '',
+    supporterRoleId: integrations.discord?.supporterRole || process.env.DISCORD_SUPPORTER_ROLE || '',
+  }
+}
 
 /**
  * Make a Discord API request
  */
 async function discordApiCall<T>(endpoint: string): Promise<T> {
+  const { botToken } = await getDiscordConfig()
   const response = await fetch(`${DISCORD_API_BASE}${endpoint}`, {
     headers: {
-      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      Authorization: `Bot ${botToken}`,
       'Content-Type': 'application/json',
     },
   })
@@ -39,14 +47,15 @@ async function discordApiCall<T>(endpoint: string): Promise<T> {
  * Assign the Discord supporter role to a guild member.
  */
 export async function assignDiscordSupporterRole(discordUserId: string): Promise<void> {
-  if (!DISCORD_BOT_TOKEN || !DISCORD_SUPPORTER_ROLE_ID) return
+  const { botToken, serverId, supporterRoleId } = await getDiscordConfig()
+  if (!botToken || !supporterRoleId) return
   try {
     const res = await fetch(
-      `${DISCORD_API_BASE}/guilds/${DISCORD_SERVER_ID}/members/${discordUserId}/roles/${DISCORD_SUPPORTER_ROLE_ID}`,
+      `${DISCORD_API_BASE}/guilds/${serverId}/members/${discordUserId}/roles/${supporterRoleId}`,
       {
         method: 'PUT',
         headers: {
-          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+          Authorization: `Bot ${botToken}`,
           'X-Audit-Log-Reason': 'Emberly: active subscription or server boost',
         },
       }
@@ -63,14 +72,15 @@ export async function assignDiscordSupporterRole(discordUserId: string): Promise
  * Remove the Discord supporter role from a guild member.
  */
 export async function removeDiscordSupporterRole(discordUserId: string): Promise<void> {
-  if (!DISCORD_BOT_TOKEN || !DISCORD_SUPPORTER_ROLE_ID) return
+  const { botToken, serverId, supporterRoleId } = await getDiscordConfig()
+  if (!botToken || !supporterRoleId) return
   try {
     const res = await fetch(
-      `${DISCORD_API_BASE}/guilds/${DISCORD_SERVER_ID}/members/${discordUserId}/roles/${DISCORD_SUPPORTER_ROLE_ID}`,
+      `${DISCORD_API_BASE}/guilds/${serverId}/members/${discordUserId}/roles/${supporterRoleId}`,
       {
         method: 'DELETE',
         headers: {
-          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+          Authorization: `Bot ${botToken}`,
           'X-Audit-Log-Reason': 'Emberly: no active subscription or server boost',
         },
       }
@@ -123,7 +133,8 @@ export async function isDiscordBooster(discordUserId: string): Promise<{
   premiumSince: Date | null
   avatarDecorationUrl: string | null
 }> {
-  if (!DISCORD_BOT_TOKEN) {
+  const { botToken, serverId } = await getDiscordConfig()
+  if (!botToken) {
     logger.warn('Discord bot token not configured — cannot verify booster status')
     return { isBooster: false, premiumSince: null, avatarDecorationUrl: null }
   }
@@ -131,7 +142,7 @@ export async function isDiscordBooster(discordUserId: string): Promise<{
   try {
     // Get guild member
     const member = await discordApiCall<any>(
-      `/guilds/${DISCORD_SERVER_ID}/members/${discordUserId}`
+      `/guilds/${serverId}/members/${discordUserId}`
     )
 
     // Extract avatar decoration if present
@@ -243,7 +254,8 @@ export async function getDiscordUserInfo(discordUserId: string): Promise<{
   username: string
   avatar?: string
 } | null> {
-  if (!DISCORD_BOT_TOKEN) {
+  const { botToken } = await getDiscordConfig()
+  if (!botToken) {
     return null
   }
 
@@ -267,13 +279,14 @@ export async function getDiscordUserInfo(discordUserId: string): Promise<{
  * Validate Discord bot token and connection
  */
 export async function validateDiscordBot(): Promise<boolean> {
-  if (!DISCORD_BOT_TOKEN) {
+  const { botToken, serverId } = await getDiscordConfig()
+  if (!botToken) {
     logger.warn('Discord bot token not configured')
     return false
   }
 
   try {
-    const guild = await discordApiCall<any>(`/guilds/${DISCORD_SERVER_ID}`)
+    const guild = await discordApiCall<any>(`/guilds/${serverId}`)
 
     if (guild) {
       logger.info('Discord bot connection validated', {

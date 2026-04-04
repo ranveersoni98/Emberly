@@ -7,7 +7,7 @@ import Stripe from 'stripe'
 import { Subscription } from '@/prisma/generated/prisma/client'
 import { prisma } from '@/packages/lib/database/prisma'
 import { loggers } from '@/packages/lib/logger'
-import { getStripeClient } from './client'
+import { getStripeClient, isStripeConfigured } from './client'
 import { applyReferralCreditsToStripe, ensureStripeCustomer } from './credits'
 
 const logger = loggers.api
@@ -51,7 +51,7 @@ export async function getOrCreateStripeCustomer(
     userId: string,
     email: string | null | undefined
 ): Promise<string> {
-    const stripe = getStripeClient()
+    const stripe = await getStripeClient()
     return ensureStripeCustomer(userId, email, stripe)
 }
 
@@ -77,7 +77,7 @@ export async function createCheckoutSession(
         quantity = 1,
     } = opts
 
-    const stripe = getStripeClient()
+    const stripe = await getStripeClient()
     const customerId = await ensureStripeCustomer(userId, email, stripe)
 
     if (applyCredits) {
@@ -95,6 +95,7 @@ export async function createCheckoutSession(
         mode,
         customer: customerId,
         line_items: [{ price: priceId, quantity }],
+        allow_promotion_codes: true,
         client_reference_id: userId,
         metadata: { userId, ...metadata },
         success_url: successUrl,
@@ -119,7 +120,7 @@ export async function createPortalSession(
 ): Promise<Stripe.BillingPortal.Session> {
     const { userId, returnUrl } = opts
 
-    const stripe = getStripeClient()
+    const stripe = await getStripeClient()
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -151,7 +152,7 @@ export async function cancelSubscription(
     subscriptionId: string,
     cancelAtPeriodEnd = true
 ): Promise<void> {
-    const stripe = getStripeClient()
+    const stripe = await getStripeClient()
 
     if (cancelAtPeriodEnd) {
         await stripe.subscriptions.update(subscriptionId, {
@@ -246,10 +247,9 @@ export async function syncUserSubscriptionsFromStripe(
     userId: string,
     stripeCustomerId: string,
 ): Promise<void> {
-    const stripeKey = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY
-    if (!stripeKey) return
+    if (!await isStripeConfigured()) return
 
-    const stripe = getStripeClient()
+    const stripe = await getStripeClient()
 
     const subs = await stripe.subscriptions.list({
         customer: stripeCustomerId,

@@ -40,6 +40,9 @@ export async function GET(req: Request) {
       take: limit,
     })
 
+    // Deduplicate grants in case of dirty data
+    const usersClean = users.map((u) => ({ ...u, grants: [...new Set(u.grants)] }))
+
     const pagination = {
       total,
       pageCount: Math.ceil(total / limit),
@@ -47,7 +50,7 @@ export async function GET(req: Request) {
       limit,
     }
 
-    return paginatedResponse<UserResponse[]>(users, pagination)
+    return paginatedResponse<UserResponse[]>(usersClean, pagination)
   } catch (error) {
     logger.error('Error fetching users', error as Error)
     return apiError('Internal server error', HTTP_STATUS.INTERNAL_SERVER_ERROR)

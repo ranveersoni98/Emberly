@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/packages/lib/auth'
 import { createPortalSession } from '@/packages/lib/stripe/billing'
+import { isStripeConfigured } from '@/packages/lib/stripe/client'
 import { handleApiError } from '@/packages/lib/api/error-handler'
 
 // GET /api/payments/portal
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
         const sess = await getServerSession(authOptions)
         if (!sess?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        if (!process.env.STRIPE_SECRET && !process.env.STRIPE_SECRET_KEY) {
+        if (!await isStripeConfigured()) {
             return NextResponse.json({ error: 'Stripe not configured' }, { status: 501 })
         }
 

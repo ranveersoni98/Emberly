@@ -31,6 +31,7 @@ import {
   Flag,
   ClipboardList,
   ShieldAlert,
+  Database,
 } from 'lucide-react'
 
 import { Icons } from '@/packages/components/shared/icons'
@@ -65,11 +66,12 @@ const dashboardRoutes = [
   { href: '/dashboard/domains', label: 'Domains', icon: Globe },
   { href: '/dashboard/analytics', label: 'Analytics', icon: ChartBar },
   { href: '/dashboard/discovery', label: 'Squads', icon: Sparkles },
+  { href: '/dashboard/bucket', label: 'Buckets', icon: Database },
 ]
 
 const extrasRoutes = [
   { href: '/pricing', label: 'Pricing', icon: CreditCard },
-  { href: '/status', label: 'Status', icon: ChartBar },
+  { href: 'https://emberlystat.us', label: 'Status', icon: ChartBar },
   { href: '/changelogs', label: 'Changelogs', icon: GitGraph },
   { href: '/press', label: 'Press Kit', icon: FileText },
 ]

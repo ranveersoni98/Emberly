@@ -41,8 +41,14 @@ import {
   Users,
   Layers,
   Award,
+  HeartHandshake,
+  Headset,
+  ShieldCheck,
+  Palette,
+  Handshake,
 } from 'lucide-react'
 import { SiDiscord, SiGithub as SiGithubIcon } from 'react-icons/si'
+import { GRANT_META, ALL_GRANTS } from '@/packages/lib/grants'
 import { SkillIcon } from './skill-icons'
 import { ReportUserDialog } from './report-user-dialog'
 
@@ -131,6 +137,7 @@ interface PublicProfileProps {
     urlId: string
     vanityId: string | null
     perkRoles: string[]
+    grants: string[]
     role: string
     alphaUser: boolean
     _count: {
@@ -254,6 +261,27 @@ export function PublicProfile({ user, storageBonus, domainBonus, linkedAccounts,
   }
   if (user.alphaUser) {
     badges.push({ label: 'Alpha Member', icon: <Sparkles className="w-3 h-3" />, className: 'text-amber-400 dark:text-amber-300 border-amber-400/40', gradient: 'from-amber-500/25 via-yellow-400/15 to-amber-300/5' })
+  }
+
+  // Grant badges — awarded via applications or manually by superadmin
+  const GRANT_ICON_MAP: Record<string, React.ReactNode> = {
+    HeartHandshake: <HeartHandshake className="w-3 h-3" />,
+    Headset:        <Headset className="w-3 h-3" />,
+    Code2:          <Code2 className="w-3 h-3" />,
+    ShieldCheck:    <ShieldCheck className="w-3 h-3" />,
+    Palette:        <Palette className="w-3 h-3" />,
+    Handshake:      <Handshake className="w-3 h-3" />,
+  }
+  for (const grant of ALL_GRANTS) {
+    if (user.grants.includes(grant)) {
+      const meta = GRANT_META[grant]
+      badges.push({
+        label: meta.label,
+        icon: GRANT_ICON_MAP[meta.icon] ?? <Award className="w-3 h-3" />,
+        className: meta.className,
+        gradient: meta.gradient,
+      })
+    }
   }
 
   // Determine which tabs to show

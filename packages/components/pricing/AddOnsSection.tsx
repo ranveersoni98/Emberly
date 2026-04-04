@@ -20,8 +20,8 @@ type Props = {
     scope: 'user' | 'squad'
 }
 
-// Maps slug → { unitLabel, category, isSquad }
-const ADDON_META: Record<string, { unitLabel: string; category: string; isSquad: boolean }> = {
+// Maps slug → { unitLabel, category, isSquad, isSubscription }
+const ADDON_META: Record<string, { unitLabel: string; category: string; isSquad: boolean; isSubscription?: boolean }> = {
     'extra-storage-1gb':       { unitLabel: 'GB', category: 'storage', isSquad: false },
     'extra-storage-1gb-squad': { unitLabel: 'GB', category: 'storage', isSquad: true },
     'extra-domain-slot':       { unitLabel: 'domain', category: 'domains', isSquad: false },
@@ -30,6 +30,7 @@ const ADDON_META: Record<string, { unitLabel: string; category: string; isSquad:
     'verify-squad':            { unitLabel: 'badge', category: 'verification', isSquad: true },
     'upload-cap-personal':     { unitLabel: 'GB', category: 'upload-cap', isSquad: false },
     'upload-cap-squad':        { unitLabel: 'GB', category: 'upload-cap', isSquad: true },
+    // storage-bucket is intentionally excluded — it has its own dedicated S3 Storage tab
 }
 
 const CATEGORY_META: Record<string, { label: string; description: string; Icon: React.ElementType }> = {
@@ -97,22 +98,26 @@ export default function AddOnsSection({ addOns, scope }: Props) {
                 const cm = CATEGORY_META[category]
                 const meta = ADDON_META[addon.key]
                 const isFixed = category === 'verification'
+                const isBucket = category === 'bucket'
 
                 return (
-                    <AddOnSelector
-                        key={category}
-                        title={cm?.label ?? addon.name}
-                        description={addon.description}
-                        pricePerUnit={addon.pricePerUnit}
-                        unitLabel={meta?.unitLabel ?? 'unit'}
-                        priceId={addon.priceId}
-                        billingPeriod={addon.billingPeriod}
-                        type={addon.key}
-                        min={1}
-                        max={isFixed ? 1 : 50}
-                        step={1}
-                        defaultValue={1}
-                    />
+                    <div key={category}>
+                        <AddOnSelector
+                            title={cm?.label ?? addon.name}
+                            description={addon.description}
+                            pricePerUnit={addon.pricePerUnit}
+                            unitLabel={meta?.unitLabel ?? 'unit'}
+                            priceId={addon.priceId}
+                            billingPeriod={addon.billingPeriod}
+                            mode={meta?.isSubscription ? 'subscription' : undefined}
+                            type={addon.key}
+                            min={1}
+                            max={isFixed ? 1 : isBucket ? 10 : 50}
+                            step={1}
+                            defaultValue={1}
+                            setupAlert={isBucket ? 'After purchase, our team will configure your bucket and send credentials to your email within 12–24 hours.' : undefined}
+                        />
+                    </div>
                 )
             })}
 

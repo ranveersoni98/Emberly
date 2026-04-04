@@ -3,6 +3,7 @@
  */
 
 import { loggers } from '@/packages/lib/logger'
+import { getIntegrations } from '@/packages/lib/config'
 
 const logger = loggers.api
 
@@ -169,7 +170,16 @@ class NotFoundError extends Error {
   }
 }
 
-export const github = new GitHubClient()
+async function getGitHubClient(): Promise<GitHubClient> {
+  const integrations = await getIntegrations()
+  const token = integrations.github?.pat || process.env.GITHUB_PAT || ''
+  return new GitHubClient(token)
+}
+
+async function resolveGitHubOrg(org?: string): Promise<string> {
+  const integrations = await getIntegrations()
+  return org ?? integrations.github?.org || process.env.GITHUB_ORG ?? 'EmberlyOSS'
+}
 
 // ---------------------------------------------------------------------------
 // User / contributor helpers
@@ -180,6 +190,7 @@ export const github = new GitHubClient()
  */
 export async function getGitHubUser(username: string): Promise<GitHubUser | null> {
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubUser>(`/users/${encodeURIComponent(username)}`)
   } catch (error) {
     if (error instanceof NotFoundError) return null
@@ -193,8 +204,9 @@ export async function getGitHubUser(username: string): Promise<GitHubUser | null
  * Defaults to the GITHUB_ORG env var.
  */
 export async function getOrgMembers(org?: string): Promise<GitHubUser[]> {
-  const orgName = org ?? process.env.GITHUB_ORG ?? 'EmberlyOSS'
+  const orgName = await resolveGitHubOrg(org)
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubUser[]>(
       `/orgs/${encodeURIComponent(orgName)}/members?per_page=100`
     )
@@ -211,7 +223,8 @@ export async function getUserContributions(
   username: string,
   org?: string
 ): Promise<ContributionStats> {
-  const orgName = org ?? process.env.GITHUB_ORG ?? 'EmberlyOSS'
+  const orgName = await resolveGitHubOrg(org)
+  const github = await getGitHubClient()
 
   const repos = await getOrgRepos(orgName)
 
@@ -260,8 +273,9 @@ export async function getUserContributions(
  * List all repos in a GitHub org (up to 100). Defaults to GITHUB_ORG env var.
  */
 export async function getOrgRepos(org?: string): Promise<GitHubRepo[]> {
-  const orgName = org ?? process.env.GITHUB_ORG ?? 'EmberlyOSS'
+  const orgName = await resolveGitHubOrg(org)
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubRepo[]>(
       `/orgs/${encodeURIComponent(orgName)}/repos?per_page=100&type=all`
     )
@@ -276,6 +290,7 @@ export async function getOrgRepos(org?: string): Promise<GitHubRepo[]> {
  */
 export async function getRepo(owner: string, name: string): Promise<GitHubRepo | null> {
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubRepo>(
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`
     )
@@ -295,6 +310,7 @@ export async function getRepoReleases(
   perPage = 10
 ): Promise<GitHubRelease[]> {
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubRelease[]>(
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/releases?per_page=${perPage}`
     )
@@ -312,7 +328,7 @@ export async function getRepoReleases(
 export async function getOrgReleases(
   org?: string
 ): Promise<Array<GitHubRelease & { repo: string; repoUrl: string }>> {
-  const orgName = org ?? process.env.GITHUB_ORG ?? 'EmberlyOSS'
+  const orgName = await resolveGitHubOrg(org)
   const repos = await getOrgRepos(orgName)
 
   const releasesArrays = await Promise.all(
@@ -347,6 +363,7 @@ export async function getUserRepos(
   perPage = 30
 ): Promise<GitHubRepo[]> {
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubRepo[]>(
       `/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=${perPage}`
     )
@@ -368,6 +385,7 @@ export async function getRepoCommits(
 ): Promise<GitHubCommit[]> {
   const authorQuery = author ? `&author=${encodeURIComponent(author)}` : ''
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubCommit[]>(
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commits?per_page=${perPage}${authorQuery}`
     )
@@ -387,6 +405,7 @@ export async function getCommitDetail(
   sha: string
 ): Promise<GitHubCommitDetail | null> {
   try {
+    const github = await getGitHubClient()
     return await github.request<GitHubCommitDetail>(
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commits/${sha}`
     )
@@ -406,8 +425,9 @@ export async function isOrgMember(
   username: string,
   org?: string
 ): Promise<boolean> {
-  const orgName = org ?? process.env.GITHUB_ORG ?? 'EmberlyOSS'
+  const orgName = await resolveGitHubOrg(org)
   try {
+    const github = await getGitHubClient()
     await github.request<void>(
       `/orgs/${encodeURIComponent(orgName)}/members/${encodeURIComponent(username)}`
     )

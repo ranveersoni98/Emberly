@@ -33,22 +33,48 @@ export enum NexiumSquadRole {
 export enum Permission {
   // Admin panel access
   ACCESS_ADMIN_PANEL = 'access_admin_panel',
-  
+
   // User management
   VIEW_USERS = 'view_users',
   EDIT_USERS = 'edit_users',
   DELETE_USERS = 'delete_users',
   CHANGE_USER_ROLE = 'change_user_role',
-  
-  // Settings management
+
+  // Settings — split into view (admin) and manage (superadmin only)
+  /** Read-only view of settings without secrets — ADMIN and SUPERADMIN */
+  VIEW_SETTINGS = 'view_settings',
+  /** Save / modify settings — SUPERADMIN only */
   MANAGE_SETTINGS = 'manage_settings',
   MANAGE_APPEARANCE = 'manage_appearance',
   MANAGE_SECURITY = 'manage_security',
-  
+
+  // Integrations — admins can view & test; only superadmin can save secrets
+  /** View integration configs (secrets masked) — ADMIN and SUPERADMIN */
+  VIEW_INTEGRATIONS = 'view_integrations',
+  /** Save integration credentials with secrets — SUPERADMIN only */
+  MANAGE_INTEGRATIONS = 'manage_integrations',
+  /** See raw API keys and secret values in the UI — SUPERADMIN only */
+  VIEW_SECRET_KEYS = 'view_secret_keys',
+
+  // Storage bucket management — SUPERADMIN only
+  MANAGE_STORAGE_BUCKETS = 'manage_storage_buckets',
+
+  // Billing
+  /** View billing / subscription info — ADMIN and SUPERADMIN */
+  VIEW_BILLING = 'view_billing',
+  /** Modify billing settings, plans, etc. — SUPERADMIN only */
+  MANAGE_BILLING = 'manage_billing',
+
   // Content moderation
   MODERATE_CONTENT = 'moderate_content',
   VIEW_AUDIT_LOGS = 'view_audit_logs',
-  
+
+  // Grants (role badges awarded via applications)
+  /** View user grant badges — ADMIN and SUPERADMIN */
+  VIEW_GRANTS = 'view_grants',
+  /** Award or revoke grant badges — SUPERADMIN only */
+  MANAGE_GRANTS = 'manage_grants',
+
   // System administration
   MANAGE_SYSTEM = 'manage_system',
   MANAGE_ROLES = 'manage_roles',
@@ -95,14 +121,21 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
     // Users have no special permissions
   ]),
   [UserRole.ADMIN]: new Set([
-    // Admin can access the admin panel and manage basic settings
+    // Admin can access the admin panel and see (not modify) settings
     Permission.ACCESS_ADMIN_PANEL,
     Permission.VIEW_USERS,
     Permission.EDIT_USERS,
-    Permission.MANAGE_SETTINGS,
+    // Settings: view only — cannot save
+    Permission.VIEW_SETTINGS,
+    Permission.VIEW_INTEGRATIONS,
+    Permission.VIEW_BILLING,
+    // Appearance: admins can manage look-and-feel
     Permission.MANAGE_APPEARANCE,
+    // Content & audit
     Permission.MODERATE_CONTENT,
     Permission.VIEW_AUDIT_LOGS,
+    // Grants: admins can see but not modify
+    Permission.VIEW_GRANTS,
   ]),
   [UserRole.SUPERADMIN]: new Set([
     // Superadmin has all permissions
@@ -111,11 +144,27 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
     Permission.EDIT_USERS,
     Permission.DELETE_USERS,
     Permission.CHANGE_USER_ROLE,
+    // Settings: full management
+    Permission.VIEW_SETTINGS,
     Permission.MANAGE_SETTINGS,
     Permission.MANAGE_APPEARANCE,
     Permission.MANAGE_SECURITY,
+    // Integrations: full management + can see secrets
+    Permission.VIEW_INTEGRATIONS,
+    Permission.MANAGE_INTEGRATIONS,
+    Permission.VIEW_SECRET_KEYS,
+    // Storage buckets
+    Permission.MANAGE_STORAGE_BUCKETS,
+    // Billing
+    Permission.VIEW_BILLING,
+    Permission.MANAGE_BILLING,
+    // Content & audit
     Permission.MODERATE_CONTENT,
     Permission.VIEW_AUDIT_LOGS,
+    // Grants
+    Permission.VIEW_GRANTS,
+    Permission.MANAGE_GRANTS,
+    // System
     Permission.MANAGE_SYSTEM,
     Permission.MANAGE_ROLES,
     Permission.PERFORM_SUPERADMIN_ACTIONS,

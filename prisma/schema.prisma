@@ -49,9 +49,16 @@ model User {
 
   alphaUser Boolean @default(false)
 
+  // Custom storage bucket assignment (overrides global default)
+  storageBucketId String?
+  storageBucket   StorageBucket? @relation("UserStorageBucket", fields: [storageBucketId], references: [id], onDelete: SetNull)
+
   // Perk system - role-based perks (CONTRIBUTOR, DISCORD_BOOSTER, AFFILIATE, etc)
   perkRoles       String[]  @default([])
   lastPerkCheckAt DateTime?
+
+  // Grants system - visible role badges awarded via applications (STAFF, SUPPORT, DEVELOPER, MODERATOR, PARTNER, DESIGNER)
+  grants          String[]  @default([])
 
   // Referral/Affiliate system
   referralCode    String? @unique
@@ -642,6 +649,10 @@ model NexiumSquad {
   isPublic    Boolean           @default(true)
   isVerified  Boolean           @default(false)
 
+  // Custom storage bucket assignment (overrides global default)
+  storageBucketId String?
+  storageBucket   StorageBucket? @relation("SquadStorageBucket", fields: [storageBucketId], references: [id], onDelete: SetNull)
+
   // Resource & billing (mirrors User-level infrastructure)
   storageUsed      Float   @default(0)
   storageQuotaMB   Int? // null = use plan default
@@ -847,6 +858,28 @@ model ApplicationReply {
 
   @@index([applicationId])
   @@index([userId])
+}
+
+// Named, reusable S3 (or local) storage configuration blocks.
+// Admins create these in Settings → Storage and can assign them to users or squads
+// so that their uploads are routed to a specific bucket.
+model StorageBucket {
+  id               String   @id @default(cuid())
+  name             String
+  provider         String   @default("s3") // 's3' | 'local'
+  s3Bucket         String   @default("")
+  s3Region         String   @default("")
+  s3AccessKeyId    String   @default("")
+  s3SecretKey      String   @default("")
+  s3Endpoint       String?
+  s3ForcePathStyle Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  assignedUsers  User[]        @relation("UserStorageBucket")
+  assignedSquads NexiumSquad[] @relation("SquadStorageBucket")
+
+  @@index([provider])
 }
 
 enum ContentReportType {

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/packages/lib/auth'
 import { prisma } from '@/packages/lib/database/prisma'
 import { createCheckoutSession } from '@/packages/lib/stripe/billing'
+import { isStripeConfigured } from '@/packages/lib/stripe/client'
 import { handleApiError } from '@/packages/lib/api/error-handler'
 
 // POST /api/payments/purchase
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
 
         const body = await req.json()
         const { priceId, type, quantity } = body
-        if (!process.env.STRIPE_SECRET && !process.env.STRIPE_SECRET_KEY) {
+        if (!await isStripeConfigured()) {
             return NextResponse.json({ error: 'Stripe not configured' }, { status: 501 })
         }
 

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { useSession } from 'next-auth/react'
+
 import pkg from '@/package.json'
 import { ScrollIndicator } from '@/packages/components/ui/scroll-indicator'
 import { css } from '@codemirror/lang-css'
@@ -10,6 +12,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import DOMPurify from 'dompurify'
 import { deepEqual } from 'fast-equals'
 import {
+	AlertCircle,
 	CheckCircle2,
 	Circle,
 	Cloud,
@@ -28,6 +31,8 @@ import {
 	Image,
 	InfoIcon,
 	Key,
+	Loader2,
+	Lock,
 	Palette,
 	RefreshCw,
 	RotateCcw,
@@ -70,6 +75,7 @@ import { cn } from '@/lib/utils'
 
 import type { EmberlyConfig } from '@/lib/config'
 
+import { StorageBucketManager } from '@/packages/components/admin/settings/storage-bucket-manager'
 import { useToast } from '@/hooks/use-toast'
 
 // Reusable GlassCard component for consistent styling
@@ -392,6 +398,9 @@ function SystemApiKeySection() {
 
 export function SettingsManager() {
 	const { toast } = useToast()
+	const { data: session } = useSession()
+	const isSuperAdmin = session?.user?.role === 'SUPERADMIN'
+
 	const [savedConfig, setSavedConfig] = useState<EmberlyConfig | null>(null)
 	const [workingConfig, setWorkingConfig] = useState<EmberlyConfig | null>(null)
 	const [pendingFaviconFile, setPendingFaviconFile] = useState<File | null>(null)
@@ -406,6 +415,47 @@ export function SettingsManager() {
 		releaseUrl?: string
 	} | null>(null)
 	const [isSaving, setIsSaving] = useState(false)
+	const [intTestStates, setIntTestStates] = useState<Record<string, { loading: boolean; ok?: boolean; message?: string }>>({})
+	const [s3TestState, setS3TestState] = useState<{ loading: boolean; ok?: boolean; message?: string } | null>(null)
+
+	const handleIntegrationTest = async (integration: string, credentials: Record<string, string>) => {
+		setIntTestStates((s) => ({ ...s, [integration]: { loading: true } }))
+		try {
+			const res = await fetch('/api/admin/integrations/test', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ integration, credentials }),
+			})
+			const data = await res.json()
+			setIntTestStates((s) => ({ ...s, [integration]: { loading: false, ok: data?.data?.ok, message: data?.data?.message } }))
+		} catch {
+			setIntTestStates((s) => ({ ...s, [integration]: { loading: false, ok: false, message: 'Request failed' } }))
+		}
+	}
+
+	const handleS3Test = async () => {
+		if (!workingConfig) return
+		setS3TestState({ loading: true })
+		const s3 = workingConfig.settings.general.storage.s3
+		try {
+			const res = await fetch('/api/admin/storage/test', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					bucket: s3?.bucket,
+					region: s3?.region,
+					accessKeyId: s3?.accessKeyId,
+					secretAccessKey: s3?.secretAccessKey,
+					endpoint: s3?.endpoint,
+					forcePathStyle: s3?.forcePathStyle,
+				}),
+			})
+			const data = await res.json()
+			setS3TestState({ loading: false, ok: data?.data?.ok, message: data?.data?.message })
+		} catch {
+			setS3TestState({ loading: false, ok: false, message: 'Request failed' })
+		}
+	}
 
 	const hasChanges =
 		!deepEqual(savedConfig, workingConfig) || pendingFaviconFile !== null
@@ -545,7 +595,13 @@ export function SettingsManager() {
 
 		let count = 0
 
-		if (!deepEqual(savedConfig.settings.general, workingConfig.settings.general)) {
+		const { storage: _cs1, ...savedGen } = savedConfig.settings.general
+		const { storage: _cs2, ...workingGen } = workingConfig.settings.general
+		if (!deepEqual(savedGen, workingGen)) {
+			count++
+		}
+
+		if (!deepEqual(_cs1, _cs2)) {
 			count++
 		}
 
@@ -556,6 +612,10 @@ export function SettingsManager() {
 		}
 
 		if (!deepEqual(savedConfig.settings.advanced, workingConfig.settings.advanced)) {
+			count++
+		}
+
+		if (!deepEqual(savedConfig.settings.integrations, workingConfig.settings.integrations)) {
 			count++
 		}
 
@@ -567,8 +627,14 @@ export function SettingsManager() {
 
 		const changedGroups: string[] = []
 
-		if (!deepEqual(savedConfig.settings.general, workingConfig.settings.general)) {
+		const { storage: _cg1, ...savedGen } = savedConfig.settings.general
+		const { storage: _cg2, ...workingGen } = workingConfig.settings.general
+		if (!deepEqual(savedGen, workingGen)) {
 			changedGroups.push('General')
+		}
+
+		if (!deepEqual(_cg1, _cg2)) {
+			changedGroups.push('Storage')
 		}
 
 		if (
@@ -579,6 +645,10 @@ export function SettingsManager() {
 
 		if (!deepEqual(savedConfig.settings.advanced, workingConfig.settings.advanced)) {
 			changedGroups.push('Advanced')
+		}
+
+		if (!deepEqual(savedConfig.settings.integrations, workingConfig.settings.integrations)) {
+			changedGroups.push('Integrations')
 		}
 
 		return changedGroups
@@ -761,13 +831,30 @@ export function SettingsManager() {
 		</span>
 	)
 
-	const generalHasChanges = !deepEqual(savedConfig?.settings.general, workingConfig?.settings.general)
+	const generalHasChanges = (() => {
+		if (!savedConfig || !workingConfig) return false
+		const { storage: _sg1, ...savedGen } = savedConfig.settings.general
+		const { storage: _sg2, ...workingGen } = workingConfig.settings.general
+		return !deepEqual(savedGen, workingGen)
+	})()
+	const storageHasChanges = !deepEqual(savedConfig?.settings.general?.storage, workingConfig?.settings.general?.storage)
 	const appearanceHasChanges = !deepEqual(savedConfig?.settings.appearance, workingConfig?.settings.appearance)
 	const advancedHasChanges = !deepEqual(savedConfig?.settings.advanced, workingConfig?.settings.advanced)
+	const integrationsHasChanges = !deepEqual(savedConfig?.settings.integrations, workingConfig?.settings.integrations)
 
 	return (
 		<div className="space-y-6 pb-32">
 			{/* Page Header - Removed as it's now in the parent page */}
+
+			{/* Admin read-only notice */}
+			{!isSuperAdmin && (
+				<div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-5 py-4 text-sm text-amber-700 dark:text-amber-400">
+					<Lock className="mt-0.5 h-4 w-4 shrink-0" />
+					<span>
+						<strong>Read-only mode.</strong> You can view and test settings, but saving changes and viewing secret keys requires <strong>Super Administrator</strong> access.
+					</span>
+				</div>
+			)}
 
 			{/* Main Content */}
 			<Tabs defaultValue="general" className="space-y-6">
@@ -781,6 +868,32 @@ export function SettingsManager() {
 							<Sliders className="h-4 w-4" />
 							<span>General</span>
 							{generalHasChanges && (
+								<span className="absolute -top-1 -right-1 flex h-3 w-3">
+									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+									<span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+								</span>
+							)}
+						</TabsTrigger>
+						<TabsTrigger 
+							value="storage" 
+							className="relative inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border-border/50"
+						>
+							<HardDrive className="h-4 w-4" />
+							<span>Storage</span>
+							{storageHasChanges && (
+								<span className="absolute -top-1 -right-1 flex h-3 w-3">
+									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+									<span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+								</span>
+							)}
+						</TabsTrigger>
+						<TabsTrigger 
+							value="integrations" 
+							className="relative inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border-border/50"
+						>
+							<Key className="h-4 w-4" />
+							<span>Integrations</span>
+							{integrationsHasChanges && (
 								<span className="absolute -top-1 -right-1 flex h-3 w-3">
 									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
 									<span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
@@ -812,13 +925,6 @@ export function SettingsManager() {
 									<span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
 								</span>
 							)}
-						</TabsTrigger>
-						<TabsTrigger 
-							value="integrations" 
-							className="relative inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:border-border/50"
-						>
-							<Key className="h-4 w-4" />
-							<span>Integrations</span>
 						</TabsTrigger>
 					</TabsList>
 				</ScrollIndicator>
@@ -949,306 +1055,6 @@ export function SettingsManager() {
 							</div>
 						)}
 
-						<SettingRow
-							label="User Quotas"
-							description="Enable storage limits per user"
-							changed={isFieldChanged('general', ['storage', 'quotas', 'enabled'])}
-						>
-							<Switch
-								checked={workingConfig.settings.general.storage.quotas.enabled}
-								onCheckedChange={(checked) =>
-									handleSettingChange('general', {
-										storage: {
-											...workingConfig.settings.general.storage,
-											quotas: {
-												...workingConfig.settings.general.storage.quotas,
-												enabled: checked,
-											},
-										},
-									})
-								}
-								className={getFieldClasses('general', ['storage', 'quotas', 'enabled'])}
-							/>
-						</SettingRow>
-
-						<div className="space-y-2 pl-0.5">
-							<div className="flex items-center gap-2">
-								<Label className="text-sm font-medium">Default Storage Quota</Label>
-								{isFieldChanged('general', ['storage', 'quotas', 'default', 'value']) && <ChangeIndicator />}
-							</div>
-							<div className="flex items-center gap-2 max-w-xs">
-								<Input
-									type="number"
-									min="0"
-									step="1"
-									value={workingConfig.settings.general.storage.quotas.default.value}
-									onChange={(e) => handleStorageQuotaChange(e.target.value)}
-									placeholder="500"
-									className={cn("flex-1", getFieldClasses('general', ['storage', 'quotas', 'default', 'value']))}
-								/>
-								<Select
-									value={workingConfig.settings.general.storage.quotas.default.unit}
-									onValueChange={(value) =>
-										handleSettingChange('general', {
-											storage: {
-												...workingConfig.settings.general.storage,
-												quotas: {
-													...workingConfig.settings.general.storage.quotas,
-													default: {
-														...workingConfig.settings.general.storage.quotas.default,
-														unit: value as 'MB' | 'GB',
-													},
-												},
-											},
-										})
-									}
-								>
-									<SelectTrigger className={cn("w-20", getFieldClasses('general', ['storage', 'quotas', 'default', 'unit']))}>
-										<SelectValue placeholder="Unit" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="MB">MB</SelectItem>
-										<SelectItem value="GB">GB</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-					</SettingsSection>
-
-					{/* Storage Settings */}
-					<SettingsSection
-						icon={HardDrive}
-						title="Storage Settings"
-						description="Configure storage provider and file upload limits"
-					>
-						<SettingRow
-							label="Background OCR Processing"
-							description="Enable OCR to search text in uploaded images"
-							changed={isFieldChanged('general', ['ocr', 'enabled'])}
-						>
-							<Switch
-								checked={workingConfig.settings.general.ocr.enabled}
-								onCheckedChange={(checked) =>
-									handleSettingChange('general', {
-										ocr: { enabled: checked },
-									})
-								}
-								className={getFieldClasses('general', ['ocr', 'enabled'])}
-							/>
-						</SettingRow>
-
-						<div className="space-y-2 pl-0.5">
-							<div className="flex items-center gap-2">
-								<Label className="text-sm font-medium">Storage Provider</Label>
-								{isFieldChanged('general', ['storage', 'provider']) && <ChangeIndicator />}
-							</div>
-							<Select
-								value={workingConfig.settings.general.storage.provider}
-								onValueChange={(value) =>
-									handleSettingChange('general', {
-										storage: {
-											...workingConfig.settings.general.storage,
-											provider: value as 'local' | 's3',
-										},
-									})
-								}
-							>
-								<SelectTrigger className={cn("max-w-xs", getFieldClasses('general', ['storage', 'provider']))}>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="local">
-										<div className="flex items-center gap-2">
-											<HardDrive className="h-4 w-4" />
-											Local Storage
-										</div>
-									</SelectItem>
-									<SelectItem value="s3">
-										<div className="flex items-center gap-2">
-											<Cloud className="h-4 w-4" />
-											S3 Storage
-										</div>
-									</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-
-						{workingConfig.settings.general.storage.provider === 's3' && (
-							<GlassCard className="mt-4" gradient={false}>
-								<div className="p-4 space-y-4">
-									<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-										<Cloud className="h-4 w-4" />
-										S3 Configuration
-									</div>
-									
-									<div className="grid gap-4 sm:grid-cols-2">
-										<div className="space-y-2">
-											<Label className="text-sm">Bucket Name</Label>
-											<Input
-												value={workingConfig.settings.general.storage.s3.bucket}
-												onChange={(e) =>
-													handleSettingChange('general', {
-														storage: {
-															...workingConfig.settings.general.storage,
-															s3: {
-																...workingConfig.settings.general.storage.s3,
-																bucket: e.target.value,
-															},
-														},
-													})
-												}
-												placeholder="my-bucket"
-												className={getFieldClasses('general', ['storage', 's3', 'bucket'])}
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label className="text-sm">Region</Label>
-											<Input
-												value={workingConfig.settings.general.storage.s3.region}
-												onChange={(e) =>
-													handleSettingChange('general', {
-														storage: {
-															...workingConfig.settings.general.storage,
-															s3: {
-																...workingConfig.settings.general.storage.s3,
-																region: e.target.value,
-															},
-														},
-													})
-												}
-												placeholder="us-east-1"
-												className={getFieldClasses('general', ['storage', 's3', 'region'])}
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label className="text-sm">Access Key ID</Label>
-											<Input
-												type="password"
-												value={workingConfig.settings.general.storage.s3.accessKeyId}
-												onChange={(e) =>
-													handleSettingChange('general', {
-														storage: {
-															...workingConfig.settings.general.storage,
-															s3: {
-																...workingConfig.settings.general.storage.s3,
-																accessKeyId: e.target.value,
-															},
-														},
-													})
-												}
-												placeholder="AKIAXXXXXXXXXXXXXXXX"
-												className={getFieldClasses('general', ['storage', 's3', 'accessKeyId'])}
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label className="text-sm">Secret Access Key</Label>
-											<Input
-												type="password"
-												value={workingConfig.settings.general.storage.s3.secretAccessKey}
-												onChange={(e) =>
-													handleSettingChange('general', {
-														storage: {
-															...workingConfig.settings.general.storage,
-															s3: {
-																...workingConfig.settings.general.storage.s3,
-																secretAccessKey: e.target.value,
-															},
-														},
-													})
-												}
-												placeholder="••••••••••••••••••••"
-												className={getFieldClasses('general', ['storage', 's3', 'secretAccessKey'])}
-											/>
-										</div>
-									</div>
-
-									<div className="space-y-2">
-										<Label className="text-sm">Custom Endpoint (Optional)</Label>
-										<Input
-											value={workingConfig.settings.general.storage.s3.endpoint || ''}
-											onChange={(e) =>
-												handleSettingChange('general', {
-													storage: {
-														...workingConfig.settings.general.storage,
-														s3: {
-															...workingConfig.settings.general.storage.s3,
-															endpoint: e.target.value,
-														},
-													},
-												})
-											}
-											placeholder="https://s3.custom-domain.com"
-											className={getFieldClasses('general', ['storage', 's3', 'endpoint'])}
-										/>
-										<p className="text-xs text-muted-foreground">
-											For S3-compatible services like MinIO or DigitalOcean Spaces
-										</p>
-									</div>
-
-									<SettingRow
-										label="Force Path Style"
-										description="Enable for S3-compatible services requiring path-style URLs"
-										changed={isFieldChanged('general', ['storage', 's3', 'forcePathStyle'])}
-									>
-										<Switch
-											checked={workingConfig.settings.general.storage.s3.forcePathStyle}
-											onCheckedChange={(checked) =>
-												handleSettingChange('general', {
-													storage: {
-														...workingConfig.settings.general.storage,
-														s3: {
-															...workingConfig.settings.general.storage.s3,
-															forcePathStyle: checked,
-														},
-													},
-												})
-											}
-											className={getFieldClasses('general', ['storage', 's3', 'forcePathStyle'])}
-										/>
-									</SettingRow>
-								</div>
-							</GlassCard>
-						)}
-
-						<div className="space-y-2 pl-0.5">
-							<div className="flex items-center gap-2">
-								<Label className="text-sm font-medium">Maximum Upload Size</Label>
-								{isFieldChanged('general', ['storage', 'maxUploadSize', 'value']) && <ChangeIndicator />}
-							</div>
-							<div className="flex items-center gap-2 max-w-xs">
-								<Input
-									type="number"
-									min="1"
-									step="1"
-									value={workingConfig.settings.general.storage.maxUploadSize.value}
-									onChange={(e) => handleMaxUploadSizeChange(e.target.value)}
-									placeholder="10"
-									className={cn("flex-1", getFieldClasses('general', ['storage', 'maxUploadSize', 'value']))}
-								/>
-								<Select
-									value={workingConfig.settings.general.storage.maxUploadSize.unit}
-									onValueChange={(value) =>
-										handleSettingChange('general', {
-											storage: {
-												...workingConfig.settings.general.storage,
-												maxUploadSize: {
-													...workingConfig.settings.general.storage.maxUploadSize,
-													unit: value as 'MB' | 'GB',
-												},
-											},
-										})
-									}
-								>
-									<SelectTrigger className={cn("w-20", getFieldClasses('general', ['storage', 'maxUploadSize', 'unit']))}>
-										<SelectValue placeholder="Unit" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="MB">MB</SelectItem>
-										<SelectItem value="GB">GB</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
 					</SettingsSection>
 
 					{/* Credits */}
@@ -1293,7 +1099,352 @@ export function SettingsManager() {
 					</SettingsSection>
 				</TabsContent>
 
-				{/* Appearance Tab */}
+				{/* Storage Tab */}
+			<TabsContent value="storage" className="space-y-5 mt-0">
+				{/* User Quotas */}
+				<SettingsSection
+					icon={Users}
+					title="User Quotas"
+					description="Configure storage limits per user"
+				>
+					<SettingRow
+						label="User Quotas"
+						description="Enable storage limits per user"
+						changed={isFieldChanged('general', ['storage', 'quotas', 'enabled'])}
+					>
+						<Switch
+							checked={workingConfig.settings.general.storage.quotas.enabled}
+							onCheckedChange={(checked) =>
+								handleSettingChange('general', {
+									storage: {
+										...workingConfig.settings.general.storage,
+										quotas: {
+											...workingConfig.settings.general.storage.quotas,
+											enabled: checked,
+										},
+									},
+								})
+							}
+							className={getFieldClasses('general', ['storage', 'quotas', 'enabled'])}
+						/>
+					</SettingRow>
+
+					<div className="space-y-2 pl-0.5">
+						<div className="flex items-center gap-2">
+							<Label className="text-sm font-medium">Default Storage Quota</Label>
+							{isFieldChanged('general', ['storage', 'quotas', 'default', 'value']) && <ChangeIndicator />}
+						</div>
+						<div className="flex items-center gap-2 max-w-xs">
+							<Input
+								type="number"
+								min="0"
+								step="1"
+								value={workingConfig.settings.general.storage.quotas.default.value}
+								onChange={(e) => handleStorageQuotaChange(e.target.value)}
+								placeholder="500"
+								className={cn("flex-1", getFieldClasses('general', ['storage', 'quotas', 'default', 'value']))}
+							/>
+							<Select
+								value={workingConfig.settings.general.storage.quotas.default.unit}
+								onValueChange={(value) =>
+									handleSettingChange('general', {
+										storage: {
+											...workingConfig.settings.general.storage,
+											quotas: {
+												...workingConfig.settings.general.storage.quotas,
+												default: {
+													...workingConfig.settings.general.storage.quotas.default,
+													unit: value as 'MB' | 'GB',
+												},
+											},
+										},
+									})
+								}
+							>
+								<SelectTrigger className={cn("w-20", getFieldClasses('general', ['storage', 'quotas', 'default', 'unit']))}>
+									<SelectValue placeholder="Unit" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="MB">MB</SelectItem>
+									<SelectItem value="GB">GB</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+				</SettingsSection>
+
+				{/* Storage Provider */}
+				<SettingsSection
+					icon={HardDrive}
+					title="Storage Settings"
+					description="Configure storage provider and file upload limits"
+				>
+					<SettingRow
+						label="Background OCR Processing"
+						description="Enable OCR to search text in uploaded images"
+						changed={isFieldChanged('general', ['ocr', 'enabled'])}
+					>
+						<Switch
+							checked={workingConfig.settings.general.ocr.enabled}
+							onCheckedChange={(checked) =>
+								handleSettingChange('general', {
+									ocr: { enabled: checked },
+								})
+							}
+							className={getFieldClasses('general', ['ocr', 'enabled'])}
+						/>
+					</SettingRow>
+
+					<div className="space-y-2 pl-0.5">
+						<div className="flex items-center gap-2">
+							<Label className="text-sm font-medium">Storage Provider</Label>
+							{isFieldChanged('general', ['storage', 'provider']) && <ChangeIndicator />}
+						</div>
+						<Select
+							value={workingConfig.settings.general.storage.provider}
+							onValueChange={(value) =>
+								handleSettingChange('general', {
+									storage: {
+										...workingConfig.settings.general.storage,
+										provider: value as 'local' | 's3',
+									},
+								})
+							}
+						>
+							<SelectTrigger className={cn("max-w-xs", getFieldClasses('general', ['storage', 'provider']))}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="local">
+									<div className="flex items-center gap-2">
+										<HardDrive className="h-4 w-4" />
+										Local Storage
+									</div>
+								</SelectItem>
+								<SelectItem value="s3">
+									<div className="flex items-center gap-2">
+										<Cloud className="h-4 w-4" />
+										S3 Storage
+									</div>
+								</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+
+					{workingConfig.settings.general.storage.provider === 's3' && (
+						<GlassCard className="mt-4" gradient={false}>
+							<div className="p-4 space-y-4">
+								<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+									<Cloud className="h-4 w-4" />
+									S3 Configuration
+								</div>
+
+								<div className="grid gap-4 sm:grid-cols-2">
+									<div className="space-y-2">
+										<Label className="text-sm">Bucket Name</Label>
+										<Input
+											value={workingConfig.settings.general.storage.s3.bucket}
+											onChange={(e) =>
+												handleSettingChange('general', {
+													storage: {
+														...workingConfig.settings.general.storage,
+														s3: {
+															...workingConfig.settings.general.storage.s3,
+															bucket: e.target.value,
+														},
+													},
+												})
+											}
+											placeholder="my-bucket"
+											className={getFieldClasses('general', ['storage', 's3', 'bucket'])}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label className="text-sm">Region</Label>
+										<Input
+											value={workingConfig.settings.general.storage.s3.region}
+											onChange={(e) =>
+												handleSettingChange('general', {
+													storage: {
+														...workingConfig.settings.general.storage,
+														s3: {
+															...workingConfig.settings.general.storage.s3,
+															region: e.target.value,
+														},
+													},
+												})
+											}
+											placeholder="us-east-1"
+											className={getFieldClasses('general', ['storage', 's3', 'region'])}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label className="text-sm">Access Key ID</Label>
+										<Input
+											type="password"
+											value={workingConfig.settings.general.storage.s3.accessKeyId}
+											onChange={(e) =>
+												handleSettingChange('general', {
+													storage: {
+														...workingConfig.settings.general.storage,
+														s3: {
+															...workingConfig.settings.general.storage.s3,
+															accessKeyId: e.target.value,
+														},
+													},
+												})
+											}
+											placeholder="AKIAXXXXXXXXXXXXXXXX"
+											className={getFieldClasses('general', ['storage', 's3', 'accessKeyId'])}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label className="text-sm">Secret Access Key</Label>
+										<Input
+											type="password"
+											value={workingConfig.settings.general.storage.s3.secretAccessKey}
+											onChange={(e) =>
+												handleSettingChange('general', {
+													storage: {
+														...workingConfig.settings.general.storage,
+														s3: {
+															...workingConfig.settings.general.storage.s3,
+															secretAccessKey: e.target.value,
+														},
+													},
+												})
+											}
+											placeholder="••••••••••••••••••••"
+											className={getFieldClasses('general', ['storage', 's3', 'secretAccessKey'])}
+										/>
+									</div>
+								</div>
+
+								<div className="space-y-2">
+									<Label className="text-sm">Custom Endpoint (Optional)</Label>
+									<Input
+										value={workingConfig.settings.general.storage.s3.endpoint || ''}
+										onChange={(e) =>
+											handleSettingChange('general', {
+												storage: {
+													...workingConfig.settings.general.storage,
+													s3: {
+														...workingConfig.settings.general.storage.s3,
+														endpoint: e.target.value,
+													},
+												},
+											})
+										}
+										placeholder="https://s3.custom-domain.com"
+										className={getFieldClasses('general', ['storage', 's3', 'endpoint'])}
+									/>
+									<p className="text-xs text-muted-foreground">
+										For S3-compatible services like MinIO or DigitalOcean Spaces
+									</p>
+								</div>
+
+								<SettingRow
+									label="Force Path Style"
+									description="Enable for S3-compatible services requiring path-style URLs"
+									changed={isFieldChanged('general', ['storage', 's3', 'forcePathStyle'])}
+								>
+									<Switch
+										checked={workingConfig.settings.general.storage.s3.forcePathStyle}
+										onCheckedChange={(checked) =>
+											handleSettingChange('general', {
+												storage: {
+													...workingConfig.settings.general.storage,
+													s3: {
+														...workingConfig.settings.general.storage.s3,
+														forcePathStyle: checked,
+													},
+												},
+											})
+										}
+										className={getFieldClasses('general', ['storage', 's3', 'forcePathStyle'])}
+									/>
+								</SettingRow>
+
+								<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+									<div>
+										{s3TestState && !s3TestState.loading && (
+											<span className={`text-xs flex items-center gap-1.5 ${s3TestState.ok ? 'text-green-500' : 'text-destructive'}`}>
+												{s3TestState.ok
+													? <CheckCircle2 className="h-3.5 w-3.5" />
+													: <AlertCircle className="h-3.5 w-3.5" />}
+												{s3TestState.message}
+											</span>
+										)}
+									</div>
+									<Button
+										variant="outline"
+										size="sm"
+										className="h-8 gap-1.5 shrink-0"
+										disabled={s3TestState?.loading}
+										onClick={handleS3Test}
+									>
+										{s3TestState?.loading
+											? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+											: <RefreshCw className="h-3.5 w-3.5" />}
+										Test Connection
+									</Button>
+								</div>
+							</div>
+						</GlassCard>
+					)}
+
+					<div className="space-y-2 pl-0.5">
+						<div className="flex items-center gap-2">
+							<Label className="text-sm font-medium">Maximum Upload Size</Label>
+							{isFieldChanged('general', ['storage', 'maxUploadSize', 'value']) && <ChangeIndicator />}
+						</div>
+						<div className="flex items-center gap-2 max-w-xs">
+							<Input
+								type="number"
+								min="1"
+								step="1"
+								value={workingConfig.settings.general.storage.maxUploadSize.value}
+								onChange={(e) => handleMaxUploadSizeChange(e.target.value)}
+								placeholder="10"
+								className={cn("flex-1", getFieldClasses('general', ['storage', 'maxUploadSize', 'value']))}
+							/>
+							<Select
+								value={workingConfig.settings.general.storage.maxUploadSize.unit}
+								onValueChange={(value) =>
+									handleSettingChange('general', {
+										storage: {
+											...workingConfig.settings.general.storage,
+											maxUploadSize: {
+												...workingConfig.settings.general.storage.maxUploadSize,
+												unit: value as 'MB' | 'GB',
+											},
+										},
+									})
+								}
+							>
+								<SelectTrigger className={cn("w-20", getFieldClasses('general', ['storage', 'maxUploadSize', 'unit']))}>
+									<SelectValue placeholder="Unit" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="MB">MB</SelectItem>
+									<SelectItem value="GB">GB</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+				</SettingsSection>
+
+				{/* Additional Storage Buckets */}
+				<SettingsSection
+					icon={Database}
+					title="Additional Storage Buckets"
+					description="Create named S3 buckets that can be assigned to specific users or squads, overriding the default storage."
+				>
+					<StorageBucketManager />
+				</SettingsSection>
+			</TabsContent>
+
+			{/* Appearance Tab */}
 				<TabsContent value="appearance" className="space-y-5 mt-0">
 					{/* Theme Colors */}
 					<SettingsSection
@@ -1510,11 +1661,441 @@ export function SettingsManager() {
 				{/* Integrations Tab */}
 				<TabsContent value="integrations" className="space-y-5 mt-0">
 					<SystemApiKeySection />
+
+					{/* Stripe */}
+					<SettingsSection
+						icon={CreditCard}
+						title="Stripe"
+						description="Payment processing. Overrides STRIPE_SECRET and STRIPE_WEBHOOK env vars."
+						badge={
+							isFieldChanged('integrations', ['stripe']) && (
+								<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+									Modified
+								</span>
+							)
+						}
+					>
+						<SettingRow label="Secret Key" description="Stripe secret key (sk_live_... or sk_test_...)">
+							<Input
+								type="password"
+								placeholder="sk_live_..."
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.stripe?.secretKey ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									stripe: {
+										...workingConfig?.settings.integrations?.stripe,
+										secretKey: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="Webhook Secret" description="Signing secret for Stripe webhook events">
+							<Input
+								type="password"
+								placeholder="whsec_..."
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.stripe?.webhookSecret ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									stripe: {
+										...workingConfig?.settings.integrations?.stripe,
+										webhookSecret: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+							<div>
+								{intTestStates['stripe'] && !intTestStates['stripe'].loading && (
+									<span className={`text-xs flex items-center gap-1.5 ${intTestStates['stripe'].ok ? 'text-green-500' : 'text-destructive'}`}>
+										{intTestStates['stripe'].ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+										{intTestStates['stripe'].message}
+									</span>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 shrink-0"
+								disabled={intTestStates['stripe']?.loading}
+								onClick={() => handleIntegrationTest('stripe', {
+									secretKey: workingConfig?.settings.integrations?.stripe?.secretKey ?? '',
+								})}
+							>
+								{intTestStates['stripe']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+								Test Connection
+							</Button>
+						</div>
+					</SettingsSection>
+
+					{/* Resend */}
+					<SettingsSection
+						icon={Zap}
+						title="Resend"
+						description="Transactional email delivery. Overrides RESEND_API_KEY and EMAIL_FROM env vars."
+						badge={
+							isFieldChanged('integrations', ['resend']) && (
+								<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+									Modified
+								</span>
+							)
+						}
+					>
+						<SettingRow label="API Key" description="Resend API key">
+							<Input
+								type="password"
+								placeholder="re_..."
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.resend?.apiKey ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									resend: {
+										...workingConfig?.settings.integrations?.resend,
+										apiKey: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="From Address" description="Sender address for outgoing emails">
+							<Input
+								placeholder="Emberly <noreply@embrly.ca>"
+								className="w-80 text-sm"
+								value={workingConfig?.settings.integrations?.resend?.emailFrom ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									resend: {
+										...workingConfig?.settings.integrations?.resend,
+										emailFrom: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+							<div>
+								{intTestStates['resend'] && !intTestStates['resend'].loading && (
+									<span className={`text-xs flex items-center gap-1.5 ${intTestStates['resend'].ok ? 'text-green-500' : 'text-destructive'}`}>
+										{intTestStates['resend'].ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+										{intTestStates['resend'].message}
+									</span>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 shrink-0"
+								disabled={intTestStates['resend']?.loading}
+								onClick={() => handleIntegrationTest('resend', {
+									apiKey: workingConfig?.settings.integrations?.resend?.apiKey ?? '',
+								})}
+							>
+								{intTestStates['resend']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+								Test Connection
+							</Button>
+						</div>
+					</SettingsSection>
+
+					{/* Cloudflare */}
+					<SettingsSection
+						icon={Cloud}
+						title="Cloudflare"
+						description="CDN, DNS, and storage. Overrides CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_ZONE_ID env vars."
+						badge={
+							isFieldChanged('integrations', ['cloudflare']) && (
+								<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+									Modified
+								</span>
+							)
+						}
+					>
+						<SettingRow label="API Token" description="Cloudflare API token with required permissions">
+							<Input
+								type="password"
+								placeholder="API token"
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.cloudflare?.apiToken ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									cloudflare: {
+										...workingConfig?.settings.integrations?.cloudflare,
+										apiToken: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="Account ID" description="Your Cloudflare account ID">
+							<Input
+								placeholder="Account ID"
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.cloudflare?.accountId ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									cloudflare: {
+										...workingConfig?.settings.integrations?.cloudflare,
+										accountId: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="Zone ID" description="Cloudflare zone ID for your domain">
+							<Input
+								placeholder="Zone ID"
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.cloudflare?.zoneId ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									cloudflare: {
+										...workingConfig?.settings.integrations?.cloudflare,
+										zoneId: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+							<div>
+								{intTestStates['cloudflare'] && !intTestStates['cloudflare'].loading && (
+									<span className={`text-xs flex items-center gap-1.5 ${intTestStates['cloudflare'].ok ? 'text-green-500' : 'text-destructive'}`}>
+										{intTestStates['cloudflare'].ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+										{intTestStates['cloudflare'].message}
+									</span>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 shrink-0"
+								disabled={intTestStates['cloudflare']?.loading}
+								onClick={() => handleIntegrationTest('cloudflare', {
+									apiToken: workingConfig?.settings.integrations?.cloudflare?.apiToken ?? '',
+									accountId: workingConfig?.settings.integrations?.cloudflare?.accountId ?? '',
+								})}
+							>
+								{intTestStates['cloudflare']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+								Test Connection
+							</Button>
+						</div>
+					</SettingsSection>
+
+					{/* Discord */}
+					<SettingsSection
+						icon={Shield}
+						title="Discord"
+						description="Alerts, webhooks, and supporter perks. Overrides DISCORD_WEBHOOK_URL, DISCORD_BOT_TOKEN, DISCORD_SERVER_ID, and DISCORD_SUPPORTER_ROLE env vars."
+						badge={
+							isFieldChanged('integrations', ['discord']) && (
+								<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+									Modified
+								</span>
+							)
+						}
+					>
+						<SettingRow label="Admin Webhook URL" description="Webhook for admin alerts and notifications">
+							<Input
+								type="password"
+								placeholder="https://discord.com/api/webhooks/..."
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.discord?.webhookUrl ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									discord: {
+										...workingConfig?.settings.integrations?.discord,
+										webhookUrl: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="Bot Token" description="Token for your Discord bot">
+							<Input
+								type="password"
+								placeholder="Bot token"
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.discord?.botToken ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									discord: {
+										...workingConfig?.settings.integrations?.discord,
+										botToken: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="Server ID" description="Discord server (guild) ID">
+							<Input
+								placeholder="Server ID"
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.discord?.serverId ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									discord: {
+										...workingConfig?.settings.integrations?.discord,
+										serverId: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="Supporter Role ID" description="Role ID granted to active supporters">
+							<Input
+								placeholder="Role ID"
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.discord?.supporterRole ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									discord: {
+										...workingConfig?.settings.integrations?.discord,
+										supporterRole: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+							<div>
+								{intTestStates['discord'] && !intTestStates['discord'].loading && (
+									<span className={`text-xs flex items-center gap-1.5 ${intTestStates['discord'].ok ? 'text-green-500' : 'text-destructive'}`}>
+										{intTestStates['discord'].ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+										{intTestStates['discord'].message}
+									</span>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 shrink-0"
+								disabled={intTestStates['discord']?.loading}
+								onClick={() => handleIntegrationTest('discord', {
+									webhookUrl: workingConfig?.settings.integrations?.discord?.webhookUrl ?? '',
+									botToken: workingConfig?.settings.integrations?.discord?.botToken ?? '',
+									serverId: workingConfig?.settings.integrations?.discord?.serverId ?? '',
+								})}
+							>
+								{intTestStates['discord']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+								Test Connection
+							</Button>
+						</div>
+					</SettingsSection>
+
+					{/* GitHub */}
+					<SettingsSection
+						icon={Github}
+						title="GitHub"
+						description="Organization data for contributors and changelogs. Overrides GITHUB_ORG and GITHUB_PAT env vars."
+						badge={
+							isFieldChanged('integrations', ['github']) && (
+								<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+									Modified
+								</span>
+							)
+						}
+					>
+						<SettingRow label="Organization" description="GitHub organization name">
+							<Input
+								placeholder="EmberlyOSS"
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.github?.org ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									github: {
+										...workingConfig?.settings.integrations?.github,
+										org: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<SettingRow label="Personal Access Token" description="PAT for authenticated API requests">
+							<Input
+								type="password"
+								placeholder="ghp_..."
+								className="w-80 font-mono text-sm"
+								value={workingConfig?.settings.integrations?.github?.pat ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									github: {
+										...workingConfig?.settings.integrations?.github,
+										pat: e.target.value,
+									},
+								})}
+							/>
+						</SettingRow>
+						<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+							<div>
+								{intTestStates['github'] && !intTestStates['github'].loading && (
+									<span className={`text-xs flex items-center gap-1.5 ${intTestStates['github'].ok ? 'text-green-500' : 'text-destructive'}`}>
+										{intTestStates['github'].ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+										{intTestStates['github'].message}
+									</span>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 shrink-0"
+								disabled={intTestStates['github']?.loading}
+								onClick={() => handleIntegrationTest('github', {
+									pat: workingConfig?.settings.integrations?.github?.pat ?? '',
+									org: workingConfig?.settings.integrations?.github?.org ?? '',
+								})}
+							>
+								{intTestStates['github']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+								Test Connection
+							</Button>
+						</div>
+					</SettingsSection>
+
+					{/* Kener */}
+					<SettingsSection
+						icon={Globe}
+						title="Kener"
+						description="Self-hosted status page (emberlystat.us). Overrides KENER_API_KEY and KENER_BASE_URL env vars."
+						badge={
+							isFieldChanged('integrations', ['kener']) && (
+								<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+									Modified
+								</span>
+							)
+						}
+					>
+						<SettingRow label="API Key" description="Kener bearer token (from your Kener instance settings)">
+							<Input
+								type="password"
+								placeholder="Bearer token"
+								className="w-80 font-mono text-sm"
+								value={(workingConfig?.settings.integrations as any)?.kener?.apiKey ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									kener: {
+										...(workingConfig?.settings.integrations as any)?.kener,
+										apiKey: e.target.value,
+									},
+								} as any)}
+							/>
+						</SettingRow>
+						<SettingRow label="Base URL" description="Public URL of your Kener instance">
+							<Input
+								placeholder="https://emberlystat.us"
+								className="w-80 text-sm"
+								value={(workingConfig?.settings.integrations as any)?.kener?.baseUrl ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									kener: {
+										...(workingConfig?.settings.integrations as any)?.kener,
+										baseUrl: e.target.value,
+									},
+								} as any)}
+							/>
+						</SettingRow>
+						<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+							<div>
+								{intTestStates['kener'] && !intTestStates['kener'].loading && (
+									<span className={`text-xs flex items-center gap-1.5 ${intTestStates['kener'].ok ? 'text-green-500' : 'text-destructive'}`}>
+										{intTestStates['kener'].ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+										{intTestStates['kener'].message}
+									</span>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 shrink-0"
+								disabled={intTestStates['kener']?.loading}
+								onClick={() => handleIntegrationTest('kener', {
+									apiKey: (workingConfig?.settings.integrations as any)?.kener?.apiKey ?? '',
+									baseUrl: (workingConfig?.settings.integrations as any)?.kener?.baseUrl ?? 'https://emberlystat.us',
+								})}
+							>
+								{intTestStates['kener']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+								Test Connection
+							</Button>
+						</div>
+					</SettingsSection>
 				</TabsContent>
 			</Tabs>
 
 			{/* Floating Save Bar */}
-			{hasChanges && (
+			{hasChanges && isSuperAdmin && (
 				<div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
 					<div className="flex items-center gap-3 px-5 py-3 bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl shadow-black/20">
 						<div className="flex items-center gap-3 pr-3 border-r border-border/50">

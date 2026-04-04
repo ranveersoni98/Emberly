@@ -70,21 +70,24 @@ const FEATURES = [
 ]
 
 async function getContributors() {
-    const ORG = 'EmberlyOSS'
+    const { getIntegrations } = await import('@/packages/lib/config')
+    const integrations = await getIntegrations()
+    const org = integrations.github?.org || process.env.GITHUB_ORG || 'EmberlyOSS'
+    const pat = integrations.github?.pat || process.env.GITHUB_PAT
     const headers: Record<string, string> = {
         Accept: 'application/vnd.github.v3+json',
     }
-    if (process.env.GITHUB_PAT) {
-        headers.Authorization = `token ${process.env.GITHUB_PAT}`
+    if (pat) {
+        headers.Authorization = `token ${pat}`
     }
 
     try {
         const [membersRes, reposRes] = await Promise.all([
-            fetch(`https://api.github.com/orgs/${ORG}/members?per_page=100`, {
+            fetch(`https://api.github.com/orgs/${org}/members?per_page=100`, {
                 headers,
                 next: { revalidate: 60 * 60 },
             }),
-            fetch(`https://api.github.com/orgs/${ORG}/repos?per_page=100`, {
+            fetch(`https://api.github.com/orgs/${org}/repos?per_page=100`, {
                 headers,
                 next: { revalidate: 60 * 60 },
             }),
@@ -98,7 +101,7 @@ async function getContributors() {
             : []
 
         const contribPromises = repoNames.map((name: string) =>
-            fetch(`https://api.github.com/repos/${ORG}/${name}/contributors?per_page=100`, {
+            fetch(`https://api.github.com/repos/${org}/${name}/contributors?per_page=100`, {
                 headers,
                 next: { revalidate: 60 * 60 },
             })

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, Package } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, Package } from 'lucide-react'
 
 import CheckoutButton from '@/packages/components/payments/CheckoutButton'
 import { Button } from '@/packages/components/ui/button'
@@ -43,6 +43,8 @@ interface AddOnSelectorProps {
     max?: number
     step?: number
     defaultValue?: number
+    /** Optional amber alert shown at the top of the card (e.g. setup notice) */
+    setupAlert?: string
 }
 
 export default function AddOnSelector({
@@ -58,6 +60,7 @@ export default function AddOnSelector({
     max = 50,
     step = 1,
     defaultValue = 1,
+    setupAlert,
 }: AddOnSelectorProps) {
     const mode = modeProp ?? (billingPeriod === 'yearly' ? 'subscription' : 'payment')
     const isFixed = min === max
@@ -88,6 +91,12 @@ export default function AddOnSelector({
     return (
         <GlassCard>
             <div className="p-6">
+                {setupAlert && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400 mb-4">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span><strong>Setup required:</strong> {setupAlert}</span>
+                    </div>
+                )}
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4">
                         <div className="p-2.5 rounded-xl bg-primary/20 shrink-0">

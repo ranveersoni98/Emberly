@@ -85,6 +85,35 @@ export const configSchema = z.object({
       customCSS: z.string().optional().default(''),
       customHead: z.string().optional().default(''),
     }).passthrough().optional().default({ customCSS: '', customHead: '' }),
+    integrations: z.object({
+      cloudflare: z.object({
+        apiToken: z.string().optional().default(''),
+        accountId: z.string().optional().default(''),
+        zoneId: z.string().optional().default(''),
+      }).passthrough().optional().default({}),
+      discord: z.object({
+        webhookUrl: z.string().optional().default(''),
+        botToken: z.string().optional().default(''),
+        serverId: z.string().optional().default(''),
+        supporterRole: z.string().optional().default(''),
+      }).passthrough().optional().default({}),
+      github: z.object({
+        org: z.string().optional().default('EmberlyOSS'),
+        pat: z.string().optional().default(''),
+      }).passthrough().optional().default({}),
+      kener: z.object({
+        apiKey: z.string().optional().default(''),
+        baseUrl: z.string().optional().default('https://emberlystat.us'),
+      }).passthrough().optional().default({}),
+      stripe: z.object({
+        secretKey: z.string().optional().default(''),
+        webhookSecret: z.string().optional().default(''),
+      }).passthrough().optional().default({}),
+      resend: z.object({
+        apiKey: z.string().optional().default(''),
+        emailFrom: z.string().optional().default(''),
+      }).passthrough().optional().default({}),
+    }).passthrough().optional().default({}),
   }).passthrough().optional().default({}),
 }).passthrough()
 
@@ -165,6 +194,35 @@ export const DEFAULT_CONFIG: EmberlyConfig = {
     advanced: {
       customCSS: '',
       customHead: '',
+    },
+    integrations: {
+      cloudflare: {
+        apiToken: '',
+        accountId: '',
+        zoneId: '',
+      },
+      discord: {
+        webhookUrl: '',
+        botToken: '',
+        serverId: '',
+        supporterRole: '',
+      },
+      github: {
+        org: 'EmberlyOSS',
+        pat: '',
+      },
+      kener: {
+        apiKey: '',
+        baseUrl: 'https://emberlystat.us',
+      },
+      stripe: {
+        secretKey: '',
+        webhookSecret: '',
+      },
+      resend: {
+        apiKey: '',
+        emailFrom: '',
+      },
     },
   },
 }
@@ -310,6 +368,34 @@ export async function updateConfig(
           ...currentConfig.settings.advanced,
           ...(newConfig.settings?.advanced || {}),
         },
+        integrations: {
+          ...currentConfig.settings.integrations,
+          ...(newConfig.settings?.integrations || {}),
+          cloudflare: {
+            ...currentConfig.settings.integrations?.cloudflare,
+            ...(newConfig.settings?.integrations?.cloudflare || {}),
+          },
+          discord: {
+            ...currentConfig.settings.integrations?.discord,
+            ...(newConfig.settings?.integrations?.discord || {}),
+          },
+          github: {
+            ...currentConfig.settings.integrations?.github,
+            ...(newConfig.settings?.integrations?.github || {}),
+          },
+          kener: {
+            ...currentConfig.settings.integrations?.kener,
+            ...(newConfig.settings?.integrations?.kener || {}),
+          },
+          stripe: {
+            ...currentConfig.settings.integrations?.stripe,
+            ...(newConfig.settings?.integrations?.stripe || {}),
+          },
+          resend: {
+            ...currentConfig.settings.integrations?.resend,
+            ...(newConfig.settings?.integrations?.resend || {}),
+          },
+        },
       },
     }
 
@@ -377,4 +463,13 @@ export async function updateConfigSection<
   } catch (error) {
     logger.warn('Could not update config section', { section, error })
   }
+}
+
+/**
+ * Returns the integrations section of the config, falling back to defaults.
+ * Convenience helper for service clients.
+ */
+export async function getIntegrations() {
+  const config = await getConfig()
+  return config.settings.integrations ?? DEFAULT_CONFIG.settings.integrations!
 }

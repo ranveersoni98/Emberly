@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Gift, Heart, HelpCircle, Package, Shield, User, Users, Zap } from 'lucide-react'
+import { Database, Gift, Heart, HelpCircle, Shield, Tag, User, Users, Zap } from 'lucide-react'
 
 import AddOnsSection from '@/packages/components/pricing/AddOnsSection'
+import { DiscountsSection } from '@/packages/components/pricing/DiscountsSection'
 import FaqSection from '@/packages/components/pricing/FaqSection'
 import PlanSection from '@/packages/components/pricing/PlanSection'
+import S3Section from '@/packages/components/pricing/S3Section'
 import { Button } from '@/packages/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/packages/components/ui/tabs'
 import { ScrollIndicator } from '@/packages/components/ui/scroll-indicator'
@@ -57,10 +59,12 @@ type Props = {
 const tabSlugs: Record<string, string> = {
     plans: 'plans',
     discovery: 'discovery',
+    s3: 's3-storage',
     'user-addons': 'user-add-ons',
     'squad-addons': 'squad-add-ons',
     faq: 'faq',
     donations: 'donations',
+    discounts: 'discounts',
 }
 
 const slugToTab = Object.entries(tabSlugs).reduce<Record<string, string>>((acc, [tab, slug]) => {
@@ -69,6 +73,7 @@ const slugToTab = Object.entries(tabSlugs).reduce<Record<string, string>>((acc, 
 }, { 'add-ons': 'user-addons' } as Record<string, string>) // backwards compat for old #add-ons hash
 
 export default function PricingTabs({ plans, activePlanKey, addOns, discoveryPlans, discoveryActivePlanKey }: Props) {
+    const bucketPriceId = addOns.find((a) => a.key === 'storage-bucket')?.priceId ?? null
     const [tabValue, setTabValue] = useState<string>('plans')
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
@@ -104,7 +109,7 @@ export default function PricingTabs({ plans, activePlanKey, addOns, discoveryPla
             {
                 name: 'Stripe',
                 description: 'Quick and secure one-time donations via Stripe.',
-                href: 'https://donate.stripe.com/3cI14ngRXcif5uAfif4ZG00',
+                href: 'https://donate.stripe.com/fZu6oHbxD3LJ6yEda74ZG01',
                 cta: 'Donate now',
                 icon: Heart,
             },
@@ -213,11 +218,18 @@ export default function PricingTabs({ plans, activePlanKey, addOns, discoveryPla
                         Squad Add-ons
                     </TabsTrigger>
                     <TabsTrigger 
-                        value="donations"
+                        value="s3"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-lg px-4 py-2 text-sm font-medium transition-all flex items-center gap-1.5"
                     >
-                        <Heart className="h-3.5 w-3.5" />
-                        Donations
+                        <Database className="h-3.5 w-3.5" />
+                        S3 Storage
+                    </TabsTrigger>
+                    <TabsTrigger 
+                        value="discounts"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none rounded-lg px-4 py-2 text-sm font-medium transition-all flex items-center gap-1.5"
+                    >
+                        <Tag className="h-3.5 w-3.5" />
+                        Discounts
                     </TabsTrigger>
                     <TabsTrigger 
                         value="faq"
@@ -263,12 +275,20 @@ export default function PricingTabs({ plans, activePlanKey, addOns, discoveryPla
                 <PlanSection plans={discoveryPlans} activePlanKey={discoveryActivePlanKey} billingCycle={billingCycle} />
             </TabsContent>
 
+            <TabsContent value="s3">
+                <S3Section priceId={bucketPriceId} />
+            </TabsContent>
+
             <TabsContent value="user-addons">
                 <AddOnsSection addOns={addOns} scope="user" />
             </TabsContent>
 
             <TabsContent value="squad-addons">
                 <AddOnsSection addOns={addOns} scope="squad" />
+            </TabsContent>
+
+            <TabsContent value="discounts">
+                <DiscountsSection />
             </TabsContent>
 
             <TabsContent value="faq">

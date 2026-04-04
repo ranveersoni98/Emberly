@@ -54,7 +54,7 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
 - **Analytics `formatBytes` Unit Bug** — `AnalyticsOverview` was treating MB values as raw bytes; now correctly multiplies by 1 024² before formatting.
 - **Stripe Credit Balance Sign** — Billing history was displaying Stripe's negative customer balance (credit) as a negative number; now correctly inverted to show credit as a positive `stripeBalance`.
 
-
+## [2.0.0] - 2026-04-02
 
 ### Added
 - **Royal Purple Theme** - Signature preset Emberly theme with rich purple color palette.

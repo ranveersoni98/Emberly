@@ -104,6 +104,18 @@ import { sanitizeUrl } from '@/packages/lib/utils/url'
 import { useToast } from '@/packages/hooks/use-toast'
 import { UserFormData, useUserManagement } from '@/packages/hooks/use-user-management'
 
+const ALL_GRANTS = ['STAFF', 'SUPPORT', 'DEVELOPER', 'MODERATOR', 'DESIGNER', 'PARTNER'] as const
+type Grant = (typeof ALL_GRANTS)[number]
+
+const GRANT_META: Record<Grant, { label: string; className: string }> = {
+  STAFF:     { label: 'Staff',     className: 'bg-violet-500/15 text-violet-400 border-violet-400/30' },
+  SUPPORT:   { label: 'Support',   className: 'bg-sky-500/15 text-sky-400 border-sky-400/30' },
+  DEVELOPER: { label: 'Developer', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-400/30' },
+  MODERATOR: { label: 'Moderator', className: 'bg-rose-500/15 text-rose-400 border-rose-400/30' },
+  DESIGNER:  { label: 'Designer',  className: 'bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-400/30' },
+  PARTNER:   { label: 'Partner',   className: 'bg-amber-500/15 text-amber-400 border-amber-400/30' },
+}
+
 interface User {
   id: string
   name: string
@@ -118,6 +130,7 @@ interface User {
   banReason: string | null
   banType: string | null
   banExpiresAt: string | null
+  grants: string[]
   subscriptions: Array<{
     status: string
     product: {
@@ -951,7 +964,7 @@ export function UserList() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center flex-wrap gap-1.5">
                       {getRoleBadge(user.role)}
                       {user.bannedAt && (
                         <Badge className="bg-destructive/20 text-destructive hover:bg-destructive/30 border-0 gap-1">
@@ -959,6 +972,15 @@ export function UserList() {
                           Banned
                         </Badge>
                       )}
+                      {[...new Set(user.grants ?? [])].map((grant) => {
+                        const meta = GRANT_META[grant as Grant]
+                        if (!meta) return null
+                        return (
+                          <Badge key={grant} variant="outline" className={`text-xs gap-1 py-0 px-1.5 border ${meta.className}`}>
+                            {meta.label}
+                          </Badge>
+                        )
+                      })}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -1325,6 +1347,53 @@ export function UserList() {
                     <p className="text-sm text-muted-foreground">Only Superadmins can grant storage, custom domains, or change plans.</p>
                   )}
                 </>
+              )}
+
+              {/* Grants panel — superadmin only, editing mode only */}
+              {editingUser && isSuperAdmin && (
+                <div className="space-y-2">
+                  <Label>Grants</Label>
+                  <p className="text-xs text-muted-foreground">Visible role badges shown on the user&apos;s public profile. Multiple can be active at once.</p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {ALL_GRANTS.map((grant) => {
+                      const active = (editingUser.grants ?? []).includes(grant)
+                      const meta = GRANT_META[grant]
+                      return (
+                        <button
+                          key={grant}
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const method = active ? 'DELETE' : 'POST'
+                              const res = await fetch(`/api/admin/users/${editingUser.id}/grants`, {
+                                method,
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ grant }),
+                              })
+                              if (!res.ok) throw new Error('Failed to update grant')
+                              // Optimistically toggle the grant on the editing user object
+                              const next = active
+                                ? (editingUser.grants ?? []).filter((g) => g !== grant)
+                                : [...(editingUser.grants ?? []), grant]
+                              setEditingUser({ ...editingUser, grants: next })
+                            } catch {
+                              toast({ title: 'Error', description: 'Failed to update grant', variant: 'destructive' })
+                            }
+                          }}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all',
+                            active
+                              ? meta.className
+                              : 'bg-muted/30 text-muted-foreground border-border/40 hover:border-border'
+                          )}
+                        >
+                          {active ? <BadgeCheck className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                          {meta.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
             </div>
             <DialogFooter>

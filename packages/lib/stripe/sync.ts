@@ -10,7 +10,7 @@
  *  - If STRIPE_SECRET is not configured the function is a no-op.
  */
 
-import { getStripeClient } from './client'
+import { getStripeClient, isStripeConfigured } from './client'
 
 export interface ProductSyncInput {
   slug: string
@@ -45,8 +45,7 @@ export interface ProductSyncResult {
  * Returns the full set of Stripe IDs (unchanged fields preserved from input).
  */
 export async function syncProductToStripe(product: ProductSyncInput): Promise<ProductSyncResult> {
-  const stripeKey = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY
-  if (!stripeKey) {
+  if (!await isStripeConfigured()) {
     return {
       stripeProductId: product.stripeProductId,
       stripePriceMonthlyId: product.stripePriceMonthlyId,
@@ -55,7 +54,7 @@ export async function syncProductToStripe(product: ProductSyncInput): Promise<Pr
     }
   }
 
-  const stripe = getStripeClient()
+  const stripe = await getStripeClient()
 
   const result: ProductSyncResult = {
     stripeProductId: product.stripeProductId,
@@ -114,7 +113,36 @@ export async function syncProductToStripe(product: ProductSyncInput): Promise<Pr
   const isPlan = product.type === 'plan' || product.type === 'nexium-plan'
   const isAddon = product.type === 'addon'
 
-  // ── 2. Create missing prices ───────────────────────────────────────────────
+  // ── 2. Verify existing prices are in CAD; archive and clear any that aren't ─
+  const priceFields = [
+    { key: 'stripePriceMonthlyId', resultKey: 'stripePriceMonthlyId' },
+    { key: 'stripePriceYearlyId',  resultKey: 'stripePriceYearlyId'  },
+    { key: 'stripePriceOneTimeId', resultKey: 'stripePriceOneTimeId' },
+  ] as const
+
+  for (const { resultKey } of priceFields) {
+    const priceId = result[resultKey]
+    if (!priceId) continue
+    try {
+      const existingPrice = await stripe.prices.retrieve(priceId)
+      if (existingPrice.currency !== 'cad') {
+        console.warn(
+          `[stripe-sync] Price "${priceId}" for "${product.slug}" is in ${existingPrice.currency.toUpperCase()} — archiving and replacing with CAD`
+        )
+        await stripe.prices.update(priceId, { active: false })
+        result[resultKey] = null
+      }
+    } catch (err: any) {
+      if (err?.raw?.code === 'resource_missing') {
+        // Stale price ID — clear it so a new one gets created
+        result[resultKey] = null
+      } else {
+        console.warn(`[stripe-sync] Failed to verify price "${priceId}" for "${product.slug}":`, err)
+      }
+    }
+  }
+
+  // ── 3. Create missing prices ───────────────────────────────────────────────
   if (isPlan && product.billingInterval === 'month') {
     if (!result.stripePriceMonthlyId) {
       try {
@@ -222,10 +250,9 @@ export async function syncProductToStripe(product: ProductSyncInput): Promise<Pr
  * Silently no-ops if Stripe is not configured or the product ID is missing.
  */
 export async function archiveStripeProduct(stripeProductId: string | null): Promise<void> {
-  const stripeKey = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY
-  if (!stripeKey || !stripeProductId) return
+  if (!await isStripeConfigured() || !stripeProductId) return
 
-  const stripe = getStripeClient()
+  const stripe = await getStripeClient()
 
   try {
     // Stripe requires all prices to be deactivated before a product can be archived

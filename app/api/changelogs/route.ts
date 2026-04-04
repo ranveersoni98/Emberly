@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 
 import { getOrgReleases } from '@/packages/lib/github'
+import { getIntegrations } from '@/packages/lib/config'
 
 export async function GET(req: Request) {
     try {
         const url = new URL(req.url)
-        const org = url.searchParams.get('org') || process.env.GITHUB_ORG
-        if (!org) return NextResponse.json({ error: 'Missing org (query ?org= or GITHUB_ORG env)' }, { status: 400 })
+        const integrations = await getIntegrations()
+        const org = url.searchParams.get('org') || integrations.github?.org || process.env.GITHUB_ORG
+        if (!org) return NextResponse.json({ error: 'Missing org (query ?org= or configure GitHub org in admin settings)' }, { status: 400 })
 
         const releases = await getOrgReleases(org)
 

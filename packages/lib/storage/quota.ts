@@ -40,8 +40,30 @@ export interface PlanLimits {
 /**
  * Get the user's current plan limits.
  * Returns plan limits or defaults if no active subscription.
+ * 
+ * Note: an active `storage-bucket` subscription removes ALL limits.
+ * A `past_due` bucket subscription reinstates normal plan quotas.
  */
 export async function getPlanLimits(userId: string): Promise<PlanLimits> {
+    // Check for an active storage-bucket subscription first — it removes all limits
+    const bucketSub = await prisma.subscription.findFirst({
+        where: {
+            userId,
+            status: 'active',
+            product: { slug: 'storage-bucket' },
+        },
+        select: { id: true },
+    })
+
+    if (bucketSub) {
+        return {
+            storageQuotaGB: null,   // unlimited
+            uploadSizeCapMB: null,  // unlimited
+            customDomainsLimit: null,
+            planName: 'Storage Bucket (Unlimited)',
+        }
+    }
+
     // Get user's active subscription with product details
     const subscription = await prisma.subscription.findFirst({
         where: {

@@ -1,6 +1,7 @@
 import { HTTP_STATUS, apiError, apiResponse } from '@/packages/lib/api/response'
 import { requireAuth } from '@/packages/lib/auth/api-auth'
 import { prisma } from '@/packages/lib/database/prisma'
+import { sendTemplateEmail, ApplicationReplyEmail } from '@/packages/lib/emails'
 import { loggers } from '@/packages/lib/logger'
 import { hasPermission, Permission } from '@/packages/lib/permissions'
 import { z } from 'zod'
@@ -70,7 +71,7 @@ export async function POST(
 
     const application = await prisma.application.findUnique({
       where: { id },
-      select: { userId: true, status: true },
+      select: { userId: true, status: true, type: true },
     })
 
     if (!application) {
@@ -107,6 +108,61 @@ export async function POST(
       userId: user.id,
       isStaffReply: isAdmin,
     })
+
+    // ── Send email notifications (fire-and-forget) ──────────────────────────
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'
+    const applicationType =
+      application.type.charAt(0) + application.type.slice(1).toLowerCase()
+
+    if (isAdmin) {
+      // Staff replied → notify the applicant
+      const applicant = await prisma.user.findUnique({
+        where: { id: application.userId },
+        select: { email: true, name: true },
+      })
+      if (applicant?.email) {
+        sendTemplateEmail({
+          to: applicant.email,
+          subject: `New reply on your ${applicationType} application`,
+          template: ApplicationReplyEmail,
+          props: {
+            recipientName: applicant.name ?? undefined,
+            replyContent: parsed.data.content,
+            senderName: user.name ?? 'Emberly Staff',
+            isStaffReply: true,
+            applicationType,
+            applicationUrl: `${appBaseUrl}/applications`,
+          },
+        }).catch((err) =>
+          logger.warn('Failed to send reply email to applicant', { error: err?.message }),
+        )
+      }
+    } else {
+      // Applicant replied → notify all admins/superadmins
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPERADMIN'] }, email: { not: null } },
+        select: { email: true, name: true },
+      })
+      for (const admin of admins) {
+        if (!admin.email) continue
+        sendTemplateEmail({
+          to: admin.email,
+          subject: `Applicant reply — ${applicationType} application`,
+          template: ApplicationReplyEmail,
+          props: {
+            recipientName: admin.name ?? undefined,
+            replyContent: parsed.data.content,
+            senderName: user.name ?? 'Applicant',
+            isStaffReply: false,
+            applicationType,
+            applicationUrl: `${appBaseUrl}/admin/applications/${id}`,
+          },
+        }).catch((err) =>
+          logger.warn('Failed to send reply email to admin', { error: err?.message }),
+        )
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     return apiResponse(reply)
   } catch (error) {

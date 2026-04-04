@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/packages/lib/auth'
 import { prisma } from '@/packages/lib/database/prisma'
 import { createCheckoutSession } from '@/packages/lib/stripe/billing'
+import { isStripeConfigured } from '@/packages/lib/stripe/client'
 import { handleApiError } from '@/packages/lib/api/error-handler'
 
 // Create Checkout session for subscription
@@ -14,14 +15,24 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json()
-        const { priceId, successUrl, cancelUrl } = body
+        const { priceId, successUrl, cancelUrl, metadata } = body
 
-        if (!process.env.STRIPE_SECRET && !process.env.STRIPE_SECRET_KEY) {
+        if (!await isStripeConfigured()) {
             return NextResponse.json({ error: 'Stripe not configured' }, { status: 501 })
         }
 
         const user = await prisma.user.findUnique({ where: { id: session.user.id } })
         if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+        // Only allow a flat string-to-string metadata object from client
+        const safeMetadata: Record<string, string> = {}
+        if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+            for (const [k, v] of Object.entries(metadata)) {
+                if (typeof k === 'string' && typeof v === 'string') {
+                    safeMetadata[k] = v
+                }
+            }
+        }
 
         const checkout = await createCheckoutSession({
             userId: user.id,
@@ -29,6 +40,7 @@ export async function POST(req: Request) {
             priceId,
             successUrl: successUrl || `${process.env.NEXT_PUBLIC_BASE_URL || ''}/dashboard`,
             cancelUrl: cancelUrl || `${process.env.NEXT_PUBLIC_BASE_URL || ''}/pricing`,
+            metadata: safeMetadata,
             applyCredits: true,
         })
 

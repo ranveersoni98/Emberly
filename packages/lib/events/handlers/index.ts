@@ -17,6 +17,7 @@ import { registerBillingHandlers } from './billing'
 import { registerDiscordHandlers } from './discord'
 import { registerEmailHandlers } from './email'
 import { registerFileHandlers } from './file'
+import { registerApplicationHandlers } from './applications'
 import { registerNexiumHandlers } from './nexium'
 import { registerFileExpiryHandlers } from './file-expiry'
 import { registerSecurityHandlers } from './security'
@@ -48,6 +49,7 @@ export async function registerAllHandlers(): Promise<void> {
     registerAdminHandlers()
     registerUserHandlers()
     registerNexiumHandlers()
+    registerApplicationHandlers()
 
     const handlerCount = eventConsumer.getHandlerCount()
     const memoryDuration = Date.now() - startTime

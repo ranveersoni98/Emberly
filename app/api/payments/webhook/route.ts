@@ -5,14 +5,16 @@ import { auditPaymentFailed, auditRefundIssued } from '@/packages/lib/events/aud
 import { events } from '@/packages/lib/events'
 import { loggers } from '@/packages/lib/logger'
 import { upsertSubscriptionRecord } from '@/packages/lib/stripe/billing'
-import { getStripeClient } from '@/packages/lib/stripe/client'
+import { getStripeClient, isStripeConfigured } from '@/packages/lib/stripe/client'
+import { getIntegrations } from '@/packages/lib/config'
 
 const logger = loggers.api
 
 export async function POST(req: Request) {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK
+    const integrations = await getIntegrations()
+    const webhookSecret = integrations.stripe?.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK
 
-    if ((!process.env.STRIPE_SECRET && !process.env.STRIPE_SECRET_KEY) || !webhookSecret) {
+    if (!await isStripeConfigured() || !webhookSecret) {
         logger.warn('Stripe secret or webhook secret not configured')
         return NextResponse.json({ ok: true })
     }
@@ -21,7 +23,7 @@ export async function POST(req: Request) {
     const raw = Buffer.from(buf)
 
     try {
-        const stripe = getStripeClient()
+        const stripe = await getStripeClient()
         const signature = req.headers.get('stripe-signature') || ''
 
         const event = stripe.webhooks.constructEvent(raw, signature, webhookSecret)

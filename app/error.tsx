@@ -1,5 +1,6 @@
 'use client'
 
+import * as Sentry from '@sentry/nextjs'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
@@ -44,6 +45,8 @@ export default function Error({
   const isDev = process.env.NODE_ENV === 'development'
 
   useEffect(() => {
+    Sentry.captureException(error)
+
     fetch('/api/errors/report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

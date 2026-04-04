@@ -15,11 +15,10 @@ import 'dotenv/config'
 import { PrismaClient } from '../prisma/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { syncProductToStripe } from '../packages/lib/stripe/sync'
+import { isStripeConfigured } from '../packages/lib/stripe/client'
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
-
-const hasStripe = !!(process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY)
 
 // ---------------------------------------------------------------------------
 // Plan definitions
@@ -437,13 +436,35 @@ const ADDON_PLANS: PlanSeed[] = [
     active: true,
     popular: false,
   },
+  {
+    slug: 'storage-bucket',
+    name: 'Storage Bucket',
+    description: 'Your own dedicated S3-compatible storage bucket. Removes all upload and storage quotas while your subscription is active.',
+    type: 'addon',
+    defaultPriceCents: 1000, // $10/month — yearly = $60 (50% off, auto-created by Stripe sync)
+    billingInterval: 'month',
+    storageQuotaGB: null,     // unlimited while active
+    uploadSizeCapMB: null,    // unlimited while active
+    customDomainsLimit: null,
+    features: [
+      'Your own dedicated S3-compatible storage bucket',
+      'Removes ALL storage quotas while active',
+      'Removes ALL upload size limits while active',
+      'Custom S3 endpoint & path-style support',
+      'Bucket credentials delivered by email',
+      '$10/month or $60/year (50% off)',
+      '⚠️ Bucket setup takes 12–24 hours after purchase',
+    ],
+    active: true,
+    popular: false,
+  },
 ]
 
 // ---------------------------------------------------------------------------
 // Seed runner
 // ---------------------------------------------------------------------------
 
-async function seedPlans(plans: PlanSeed[], label: string) {
+async function seedPlans(plans: PlanSeed[], label: string, hasStripe: boolean) {
   console.log(`\nSeeding ${label} plans...`)
   for (const plan of plans) {
     const result = await prisma.product.upsert({
@@ -475,9 +496,21 @@ async function seedPlans(plans: PlanSeed[], label: string) {
       await prisma.product.update({ where: { id: result.id }, data: stripeIds })
       const parts: string[] = []
       if (stripeIds.stripeProductId && !result.stripeProductId) parts.push(`product=${stripeIds.stripeProductId}`)
-      if (stripeIds.stripePriceMonthlyId && !result.stripePriceMonthlyId) parts.push(`monthly=${stripeIds.stripePriceMonthlyId}`)
-      if (stripeIds.stripePriceYearlyId && !result.stripePriceYearlyId) parts.push(`yearly=${stripeIds.stripePriceYearlyId}`)
-      if (stripeIds.stripePriceOneTimeId && !result.stripePriceOneTimeId) parts.push(`one-time=${stripeIds.stripePriceOneTimeId}`)
+      if (stripeIds.stripePriceMonthlyId !== result.stripePriceMonthlyId) {
+        parts.push(stripeIds.stripePriceMonthlyId
+          ? `monthly=${stripeIds.stripePriceMonthlyId} (replaced USD)`
+          : `monthly archived (USD→CAD pending)`)
+      }
+      if (stripeIds.stripePriceYearlyId !== result.stripePriceYearlyId) {
+        parts.push(stripeIds.stripePriceYearlyId
+          ? `yearly=${stripeIds.stripePriceYearlyId} (replaced USD)`
+          : `yearly archived (USD→CAD pending)`)
+      }
+      if (stripeIds.stripePriceOneTimeId !== result.stripePriceOneTimeId) {
+        parts.push(stripeIds.stripePriceOneTimeId
+          ? `one-time=${stripeIds.stripePriceOneTimeId} (replaced USD)`
+          : `one-time archived (USD→CAD pending)`)
+      }
       console.log(`  ✓ ${result.slug} — ${result.name} [Stripe: ${parts.join(', ')}]`)
     } else {
       const stripeStatus = stripeIds.stripeProductId ? `Stripe ✓ ${stripeIds.stripeProductId}` : (hasStripe ? 'Stripe skipped (free/custom)' : '')
@@ -487,13 +520,14 @@ async function seedPlans(plans: PlanSeed[], label: string) {
 }
 
 async function main() {
+  const hasStripe = await isStripeConfigured()
   console.log('=== Emberly Plan Seed ===')
   console.log('Database:', process.env.DATABASE_URL?.replace(/\/\/.*@/, '//***@') ?? '(not set)')
   console.log('Stripe:', hasStripe ? 'configured ✓' : 'not configured — skipping Stripe sync')
 
-  await seedPlans(EMBERLY_PLANS, 'Emberly')
-  await seedPlans(NEXIUM_PLANS, 'Discovery')
-  await seedPlans(ADDON_PLANS, 'Add-on')
+  await seedPlans(EMBERLY_PLANS, 'Emberly', hasStripe)
+  await seedPlans(NEXIUM_PLANS, 'Discovery', hasStripe)
+  await seedPlans(ADDON_PLANS, 'Add-on', hasStripe)
 
   const total = await prisma.product.count()
   console.log(`\nDone. Total products in DB: ${total}`)

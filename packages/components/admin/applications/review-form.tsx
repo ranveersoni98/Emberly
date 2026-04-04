@@ -19,6 +19,7 @@ interface ApplicationReviewFormProps {
   applicationId: string
   currentStatus: string
   currentReviewNotes?: string | null
+  applicationType?: string
 }
 
 const STATUS_OPTIONS = [
@@ -33,19 +34,32 @@ const DECISION_STYLES: Record<string, string> = {
   REJECTED: 'bg-red-500/20 text-red-400 border-red-500/30',
 }
 
+/** Grants available to award on STAFF application approval */
+const STAFF_GRANT_OPTIONS = [
+  { value: 'SUPPORT',   label: 'Support' },
+  { value: 'DEVELOPER', label: 'Developer' },
+  { value: 'MODERATOR', label: 'Moderator' },
+  { value: 'DESIGNER',  label: 'Designer' },
+  { value: 'STAFF',     label: 'Staff (general)' },
+] as const
+
 export function ApplicationReviewForm({
   applicationId,
   currentStatus,
   currentReviewNotes,
+  applicationType,
 }: ApplicationReviewFormProps) {
   const router = useRouter()
   const [status, setStatus] = useState<string>('')
   const [reviewNotes, setReviewNotes] = useState(currentReviewNotes ?? '')
+  const [grantToAward, setGrantToAward] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
   const isFinal = currentStatus === 'APPROVED' || currentStatus === 'REJECTED'
+  const isStaffApp = applicationType === 'STAFF'
+  const showGrantPicker = isStaffApp && status === 'APPROVED'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -56,13 +70,18 @@ export function ApplicationReviewForm({
     setSuccess(false)
 
     try {
+      const body: Record<string, unknown> = {
+        status,
+        reviewNotes: reviewNotes.trim() || undefined,
+      }
+      if (status === 'APPROVED' && grantToAward) {
+        body.grantToAward = grantToAward
+      }
+
       const res = await fetch(`/api/admin/applications/${applicationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status,
-          reviewNotes: reviewNotes.trim() || undefined,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -83,16 +102,16 @@ export function ApplicationReviewForm({
   if (isFinal) {
     return (
       <div className="rounded-xl border border-border/50 bg-background/80 backdrop-blur-lg p-4">
-        <p className="text-sm text-muted-foreground">
-          This application has been{' '}
+        <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+          <span>This application has been</span>
           <Badge
             variant="outline"
             className={DECISION_STYLES[currentStatus] ?? ''}
           >
             {currentStatus}
-          </Badge>{' '}
-          and can no longer be modified.
-        </p>
+          </Badge>
+          <span>and can no longer be modified.</span>
+        </div>
       </div>
     )
   }
@@ -114,6 +133,30 @@ export function ApplicationReviewForm({
           </SelectContent>
         </Select>
       </div>
+
+      {showGrantPicker && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">
+            Grant to Award{' '}
+            <span className="text-muted-foreground font-normal">(optional)</span>
+          </label>
+          <Select value={grantToAward} onValueChange={setGrantToAward}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a grant badge…" />
+            </SelectTrigger>
+            <SelectContent>
+              {STAFF_GRANT_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            This badge will appear on the applicant&apos;s public profile.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-2">
         <label className="text-sm font-medium">

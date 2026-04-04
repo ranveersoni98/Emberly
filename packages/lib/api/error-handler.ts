@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 import { loggers } from '@/packages/lib/logger'
 import { HTTP_STATUS } from '@/packages/lib/api/response'
 
@@ -61,6 +62,7 @@ export function handleApiError(
   // Error object
   if (error instanceof Error) {
     log.error(`${message}`, error, context)
+    Sentry.captureException(error, { extra: { message, ...context } })
 
     return NextResponse.json(
       {
@@ -73,6 +75,7 @@ export function handleApiError(
 
   // Unknown error
   log.error(`Unknown error: ${message}`, error, context)
+  Sentry.captureException(error, { extra: { message, ...context } })
   return NextResponse.json(
     { error: message },
     { status: statusCode }

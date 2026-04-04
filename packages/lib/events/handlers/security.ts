@@ -2,6 +2,7 @@ import type { EventPayload } from '@/packages/types/events'
 
 import { loggers } from '@/packages/lib/logger'
 import { notifyDiscord } from '../utils/discord-webhook'
+import { getIntegrations } from '@/packages/lib/config'
 
 import { events } from '../index'
 
@@ -57,7 +58,8 @@ export function registerSecurityHandlers(): void {
                     context: payload.context,
                 })
 
-                const adminWebhookUrl = process.env.DISCORD_WEBHOOK_URL
+                const integrations = await getIntegrations()
+                const adminWebhookUrl = integrations.discord?.webhookUrl || process.env.DISCORD_WEBHOOK_URL
                 if (adminWebhookUrl) {
                     await notifyDiscord({
                         webhookUrl: adminWebhookUrl,

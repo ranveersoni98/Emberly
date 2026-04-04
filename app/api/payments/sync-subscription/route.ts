@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/packages/lib/auth'
 import { prisma } from '@/packages/lib/database/prisma'
 import { syncUserSubscriptionsFromStripe } from '@/packages/lib/stripe/billing'
+import { isStripeConfigured } from '@/packages/lib/stripe/client'
 
 /**
  * POST /api/payments/sync-subscription
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ synced: 0, message: 'No Stripe customer linked' })
     }
 
-    if (!process.env.STRIPE_SECRET && !process.env.STRIPE_SECRET_KEY) {
+    if (!await isStripeConfigured()) {
         return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
     }
 

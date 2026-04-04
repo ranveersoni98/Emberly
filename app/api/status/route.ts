@@ -1,35 +1,28 @@
-import { NextResponse } from 'next/server'
-
-import { apiResponse, apiError } from '@/packages/lib/api/response'
-import { getFullStatusData, getStatusSummary } from '@/packages/lib/instatus'
+import { apiResponse } from '@/packages/lib/api/response'
+import { getKenerStatus } from '@/packages/lib/kener'
 
 /**
  * GET /api/status
- * Returns aggregated status data including summary, components, and active issues
+ * Returns aggregated status from the Kener instance at emberlystat.us
  */
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url)
-    const full = searchParams.get('full') === 'true'
-
+export async function GET() {
     try {
-        if (full) {
-            // Return full aggregated status data
-            const data = await getFullStatusData()
-            if (!data) {
-                return apiError('Failed to fetch status data', 503)
-            }
-            return apiResponse(data)
-        }
-
-        // Return just the summary for quick status checks
-        const summary = await getStatusSummary()
+        const summary = await getKenerStatus()
         if (!summary) {
-            return apiError('Failed to fetch status summary', 503)
+            // Kener unreachable — return a graceful UNKNOWN state rather than a hard 503
+            return apiResponse({
+                page: { name: 'Emberly Status', url: 'https://emberlystat.us', status: 'UNKNOWN' },
+                activeIncidents: [],
+                activeMaintenances: [],
+            })
         }
-
         return apiResponse(summary)
     } catch (err) {
         console.error('Error fetching status:', err)
-        return apiError('Internal server error', 500)
+        return apiResponse({
+            page: { name: 'Emberly Status', url: 'https://emberlystat.us', status: 'UNKNOWN' },
+            activeIncidents: [],
+            activeMaintenances: [],
+        })
     }
 }

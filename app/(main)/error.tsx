@@ -1,7 +1,8 @@
 'use client'
 
+import * as Sentry from '@sentry/nextjs'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import {
   AlertTriangle,
@@ -42,6 +43,10 @@ export default function Error({
   const message = error?.message || 'An unexpected error occurred'
   const stack = String((error as any)?.stack || '')
   const isDev = process.env.NODE_ENV === 'development'
+
+  useEffect(() => {
+    Sentry.captureException(error)
+  }, [error])
 
   const handleCopy = async () => {
     const errorInfo = `Error: ${message}\n\nDigest: ${error?.digest || 'N/A'}\n\n${isDev ? `Stack:\n${stack}` : ''}`

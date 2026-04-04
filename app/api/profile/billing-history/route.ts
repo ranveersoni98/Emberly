@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/packages/lib/auth'
 import { prisma } from '@/packages/lib/database/prisma'
-import { getStripeClient } from '@/packages/lib/stripe/client'
+import { getStripeClient, isStripeConfigured } from '@/packages/lib/stripe/client'
 
 /**
  * GET /api/profile/billing-history
@@ -64,8 +64,8 @@ export async function GET(req: Request) {
         let stripeSubscriptions: any[] = []
         if (user?.stripeCustomerId) {
             try {
-                if (process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY) {
-                    const stripe = getStripeClient()
+                if (await isStripeConfigured()) {
+                    const stripe = await getStripeClient()
                     const [customer, subs] = await Promise.all([
                         stripe.customers.retrieve(user.stripeCustomerId),
                         stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'all', limit: 10, expand: ['data.items.data.price'] }),

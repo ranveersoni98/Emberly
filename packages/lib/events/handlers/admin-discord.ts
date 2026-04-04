@@ -1,7 +1,7 @@
 /**
  * Admin Discord Notifications
  * 
- * Sends critical events to admin Discord webhook (DISCORD_WEBHOOK_URL)
+ * Sends critical events to admin Discord webhook (discord.webhookUrl in config)
  * Events: Admin actions, security issues, billing problems, system alerts
  */
 
@@ -9,10 +9,9 @@ import type { EventPayload } from '@/packages/types/events'
 import { loggers } from '@/packages/lib/logger'
 import { notifyDiscord } from '../utils/discord-webhook'
 import { events } from '../index'
+import { getIntegrations } from '@/packages/lib/config'
 
 const logger = loggers.events.getChildLogger('admin-discord')
-
-const ADMIN_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL
 
 // Color coding for admin alerts
 const ALERT_COLORS = {
@@ -33,14 +32,16 @@ async function sendAdminAlert(embed: {
   fields?: Array<{ name: string; value: string; inline?: boolean }>
   timestamp?: Date
 }): Promise<void> {
-  if (!ADMIN_WEBHOOK_URL) {
-    logger.warn('DISCORD_WEBHOOK_URL not configured, skipping admin alert')
+  const integrations = await getIntegrations()
+  const webhookUrl = integrations.discord?.webhookUrl || process.env.DISCORD_WEBHOOK_URL
+  if (!webhookUrl) {
+    logger.warn('Discord webhook URL not configured, skipping admin alert')
     return
   }
 
   try {
     await notifyDiscord({
-      webhookUrl: ADMIN_WEBHOOK_URL,
+      webhookUrl,
       embeds: [{
         ...embed,
         timestamp: embed.timestamp?.toISOString(),
@@ -441,9 +442,10 @@ export function registerAdminDiscordHandlers(): void {
     'application.submitted',
     'admin-discord-notify',
     async (payload: EventPayload<'application.submitted'>) => {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'
       await sendAdminAlert({
         title: '📋 Application Submitted',
-        description: `**${payload.userName}** submitted a **${payload.type}** application`,
+        description: `**${payload.userName}** submitted a **${payload.type}** application\n[Review in Admin Panel](${baseUrl}/admin/applications/${payload.applicationId})`,
         color: ALERT_COLORS.info,
         fields: [
           { name: 'Application ID', value: payload.applicationId, inline: true },

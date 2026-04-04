@@ -18,6 +18,7 @@ export interface User {
   banReason: string | null
   banType: string | null
   banExpiresAt: string | null
+  grants: string[]
   subscriptions: Array<{
     status: string
     product: {

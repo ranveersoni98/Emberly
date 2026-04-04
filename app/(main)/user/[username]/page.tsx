@@ -81,6 +81,7 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
       discord: true,
       createdAt: true,
       perkRoles: true,
+      grants: true,
       urlId: true,
       vanityId: true,
       alphaUser: true,

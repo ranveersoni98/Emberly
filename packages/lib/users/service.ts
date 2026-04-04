@@ -33,6 +33,7 @@ export const USER_ADMIN_SELECT = {
   banReason: true,
   banType: true,
   banExpiresAt: true,
+  grants: true,
   subscriptions: {
     where: { status: 'active' },
     orderBy: { createdAt: 'desc' as const },

@@ -290,8 +290,8 @@ For feature requests, please include:
 
 ### Getting Help
 
-- **Discord** - Join our [Discord server](https://discord.gg/A8c58ScRCj) for real-time chat
-- **GitHub Discussions** - For longer-form conversations
+- **Discord** - Join our [Discord server](https://discord.gg/A8c58ScRCj) for realtime chat
+- **GitHub Discussions** - For longer form conversations
 - **Issues** - For bug reports and feature requests
 
 ### Recognition
@@ -312,4 +312,4 @@ By contributing to Emberly, you agree that your contributions will be licensed u
 
 ---
 
-Thank you for contributing to Emberly! 🔥
+Thank you for contributing to Emberly!

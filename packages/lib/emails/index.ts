@@ -2,27 +2,31 @@ import type { ReactElement } from 'react'
 
 import { Resend } from 'resend'
 import { prisma } from '@/packages/lib/database/prisma'
-
-const defaultFrom = process.env.EMAIL_FROM || 'Emberly <noreply@embrly.ca>'
+import { getIntegrations } from '@/packages/lib/config'
 
 let cachedResend: Resend | null = null
+let cachedResendKey: string | null = null
 
-function getResendClient() {
-    if (cachedResend) return cachedResend
-    const apiKey = process.env.RESEND_API_KEY
+async function getResendClient(): Promise<{ client: Resend; from: string }> {
+    const integrations = await getIntegrations()
+    const apiKey = integrations.resend?.apiKey || process.env.RESEND_API_KEY
+    const emailFrom = integrations.resend?.emailFrom || process.env.EMAIL_FROM || 'Emberly <noreply@embrly.ca>'
+
     if (!apiKey) {
-        throw new Error('RESEND_API_KEY is not set')
+        throw new Error('Resend API key is not configured')
     }
 
-    // Log which sender/domain is being used to catch any accidental "placeholder" configs
-    const sender = process.env.EMAIL_FROM || defaultFrom
-    // Do not log the full key; just the prefix for diagnostics
-    const apiKeyPrefix = `${apiKey.slice(0, 6)}…`
-    // eslint-disable-next-line no-console
-    console.info('[email] Using Resend', { from: sender, apiKey: apiKeyPrefix })
+    // Re-initialise if the key changed (e.g. admin updated it)
+    if (cachedResendKey !== apiKey) {
+        cachedResendKey = apiKey
+        // Do not log the full key; just the prefix for diagnostics
+        const apiKeyPrefix = `${apiKey.slice(0, 6)}…`
+        // eslint-disable-next-line no-console
+        console.info('[email] Using Resend', { from: emailFrom, apiKey: apiKeyPrefix })
+        cachedResend = new Resend(apiKey)
+    }
 
-    cachedResend = new Resend(apiKey)
-    return cachedResend
+    return { client: cachedResend!, from: emailFrom }
 }
 
 export type SendEmailOptions = {
@@ -56,6 +60,9 @@ export { StorageAssignedEmail } from './templates/storage-assigned'
 export { NexiumWelcomeEmail } from './templates/nexium-welcome'
 export { NexiumOpportunityEmail } from './templates/nexium-opportunity'
 export { NexiumSquadInviteEmail } from './templates/nexium-squad-invite'
+export { ApplicationReplyEmail } from './templates/application-reply'
+export { ApplicationStatusEmail } from './templates/application-status'
+export { BucketCredentialsEmail } from './templates/bucket-credentials'
 
 export async function sendEmail({
     to,
@@ -73,7 +80,7 @@ export async function sendEmail({
         throw new Error('Provide react, html, or text content')
     }
 
-    const resend = getResendClient()
+    const { client: resend, from: defaultFrom } = await getResendClient()
     const payload = {
         from: from || defaultFrom,
         to,

@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { HTTP_STATUS, apiError, apiResponse } from '@/packages/lib/api/response'
 import { requireAdmin } from '@/packages/lib/auth/api-auth'
 import { prisma } from '@/packages/lib/database/prisma'
+import { sendTemplateEmail, ApplicationStatusEmail } from '@/packages/lib/emails'
 import { events } from '@/packages/lib/events'
+import { addGrant, getDefaultGrantForApplicationType } from '@/packages/lib/grants'
 import { loggers } from '@/packages/lib/logger'
 import { ApplicationStatus, ApplicationType } from '@/prisma/generated/prisma/client'
 
@@ -17,6 +19,8 @@ const ReviewSchema = z.object({
     .string()
     .max(5000, 'Review notes must be at most 5000 characters')
     .optional(),
+  /** Optional grant to award when approving a STAFF application */
+  grantToAward: z.string().optional(),
 })
 
 export async function PATCH(
@@ -46,7 +50,7 @@ export async function PATCH(
       return apiError(parsed.error.issues[0].message, HTTP_STATUS.BAD_REQUEST)
     }
 
-    const { status, reviewNotes } = parsed.data
+    const { status, reviewNotes, grantToAward } = parsed.data
     const isFinalDecision = status === 'APPROVED' || status === 'REJECTED'
 
     // APPROVED + BAN_APPEAL → automatically unban the user
@@ -64,6 +68,20 @@ export async function PATCH(
         userId: existing.userId,
         applicationId: id,
       })
+    }
+
+    // APPROVED → auto-award grant based on application type, or manual override
+    if (status === 'APPROVED') {
+      const autoGrant = getDefaultGrantForApplicationType(existing.type)
+      const grantValue = grantToAward ?? autoGrant
+      if (grantValue) {
+        await addGrant(existing.userId, grantValue as any)
+        logger.info('Grant awarded on application approval', {
+          userId: existing.userId,
+          applicationId: id,
+          grant: grantValue,
+        })
+      }
     }
 
     const updated = await prisma.application.update({
@@ -91,6 +109,30 @@ export async function PATCH(
         reviewerName: adminUser.name ?? 'Admin',
         reviewNotes: reviewNotes,
       })
+    }
+
+    // Send "under review" email directly for REVIEWING status changes
+    if (status === 'REVIEWING' && existing.user.email) {
+      const applicationType =
+        existing.type.charAt(0) + existing.type.slice(1).toLowerCase().replace('_', ' ')
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'
+      sendTemplateEmail({
+        to: existing.user.email,
+        subject: `Your ${applicationType} application is under review`,
+        template: ApplicationStatusEmail,
+        props: {
+          recipientName: existing.user.name ?? undefined,
+          applicationType,
+          status: 'reviewing',
+          applicationUrl: `${appBaseUrl}/applications`,
+        },
+        skipTracking: true,
+      }).catch((err) =>
+        logger.warn('Failed to send reviewing notification email', {
+          applicationId: id,
+          error: err?.message,
+        }),
+      )
     }
 
     logger.info('Application reviewed', {

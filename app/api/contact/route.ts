@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { rateLimiter } from "@/packages/lib/cache/rate-limit"
 import { BasicEmail, sendTemplateEmail } from "@/packages/lib/emails"
 import { notifyDiscord } from '@/packages/lib/events/utils/discord-webhook'
+import { getIntegrations } from '@/packages/lib/config'
 
 export async function POST(req: Request) {
     try {
@@ -34,7 +35,8 @@ export async function POST(req: Request) {
         const safeMessage = String(message).slice(0, 2000)
 
         // Admin Discord alert (admin-facing, system channel — fire-and-forget)
-        const adminWebhookUrl = process.env.DISCORD_WEBHOOK_URL
+        const integrations = await getIntegrations()
+        const adminWebhookUrl = integrations.discord?.webhookUrl || process.env.DISCORD_WEBHOOK_URL
         if (adminWebhookUrl) {
             notifyDiscord({
                 webhookUrl: adminWebhookUrl,
