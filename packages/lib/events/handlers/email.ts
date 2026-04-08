@@ -1,6 +1,38 @@
 import type { EventPayload, EventType } from '@/packages/types/events'
 
-import { sendTemplateEmail, BasicEmail, AdminBroadcastEmail, AccountChangeEmail, PerkGainedEmail, QuotaReachedEmail, StorageAssignedEmail, NewLoginEmail, NexiumWelcomeEmail, NexiumOpportunityEmail, NexiumSquadInviteEmail } from '@/packages/lib/emails'
+import { 
+    sendTemplateEmail, 
+    BasicEmail, 
+    AdminBroadcastEmail, 
+    AccountChangeEmail, 
+    PerkGainedEmail, 
+    QuotaReachedEmail, 
+    StorageAssignedEmail, 
+    NewLoginEmail, 
+    NexiumWelcomeEmail, 
+    NexiumOpportunityEmail, 
+    NexiumSquadInviteEmail,
+    WelcomeEmail,
+    VerificationCodeEmail,
+    MagicLinkEmail,
+    PasswordResetEmail,
+    EmailChangedOldEmail,
+    EmailChangedNewEmail,
+    ExportRequestedEmail,
+    ExportCompletedEmail,
+    DeletionRequestedEmail,
+    DeletionCancelledEmail,
+    AccountDeletedEmail,
+    SubscriptionCreatedEmail,
+    SubscriptionUpdatedEmail,
+    SubscriptionCancelledEmail,
+    PaymentSucceededEmail,
+    PaymentFailedEmail,
+    RefundIssuedEmail,
+    ApplicationReplyEmail,
+    ApplicationStatusEmail,
+    BucketCredentialsEmail,
+} from '@/packages/lib/emails'
 import { loggers } from '@/packages/lib/logger'
 
 import { events } from '../index'
@@ -186,24 +218,311 @@ async function sendEmail(options: {
         return { messageId: result.id || `email-${Date.now()}` }
     }
 
-    // Default: use BasicEmail for other templates
-    let bodyContent: string[] = []
-    
-    if (typeof variables.body === 'string') {
-        // Split by newlines and filter empty lines
-        bodyContent = variables.body.split('\n').filter(line => line.trim().length > 0)
-    } else if (Array.isArray(variables.body)) {
-        // Filter empty strings from array
-        bodyContent = variables.body.filter(line => typeof line === 'string' && line.trim().length > 0)
-    } else if (variables.body) {
-        bodyContent = [String(variables.body)]
-    }
-    
-    // Ensure we have at least some content
-    if (bodyContent.length === 0) {
-        bodyContent = ['(No content provided)']
+    // Account templates
+    if (template === 'welcome') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: WelcomeEmail,
+            props: {
+                name: typeof variables.name === 'string' ? variables.name : undefined,
+                verificationUrl: typeof variables.verificationUrl === 'string' ? variables.verificationUrl : undefined,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
     }
 
+    if (template === 'verify-email') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: VerificationCodeEmail,
+            props: {
+                code: String(variables.verifyToken || variables.code || ''),
+                verificationUrl: typeof variables.verifyUrl === 'string' ? variables.verifyUrl : undefined,
+                expiresInMinutes: typeof variables.expiresInMinutes === 'number' ? variables.expiresInMinutes : 30,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'magic-link') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: MagicLinkEmail,
+            props: {
+                magicLink: String(variables.magicLink || ''),
+                email: to instanceof Array ? to[0] : to,
+                expiresInMinutes: typeof variables.expiresInMinutes === 'number' ? variables.expiresInMinutes : 15,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'password-reset') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: PasswordResetEmail,
+            props: {
+                resetUrl: String(variables.resetUrl || ''),
+                expiresInMinutes: typeof variables.expiresInMinutes === 'number' ? variables.expiresInMinutes : 30,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'email-changed-old') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: EmailChangedOldEmail,
+            props: {
+                oldEmail: String(variables.oldEmail || ''),
+                newEmail: String(variables.newEmail || ''),
+                changedAt: String(variables.changedAt || new Date().toISOString()),
+                changedBy: typeof variables.changedBy === 'string' ? variables.changedBy : 'by you',
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'email-changed-new') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: EmailChangedNewEmail,
+            props: {
+                oldEmail: String(variables.oldEmail || ''),
+                newEmail: String(variables.newEmail || ''),
+                changedAt: String(variables.changedAt || new Date().toISOString()),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'export-requested') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: ExportRequestedEmail,
+            props: {
+                exportId: String(variables.exportId || ''),
+                requestedAt: String(variables.requestedAt || new Date().toISOString()),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'export-completed') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: ExportCompletedEmail,
+            props: {
+                downloadUrl: String(variables.downloadUrl || ''),
+                expiresAt: typeof variables.expiresAt === 'string' ? variables.expiresAt : undefined,
+                exportId: String(variables.exportId || ''),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'deletion-requested') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: DeletionRequestedEmail,
+            props: {
+                scheduledAt: String(variables.scheduledAt || ''),
+                cancelUrl: String(variables.cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'}/dashboard/profile`),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'deletion-cancelled') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: DeletionCancelledEmail,
+            props: {
+                cancelledAt: String(variables.cancelledAt || new Date().toISOString()),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'account-deleted') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: AccountDeletedEmail,
+            props: {
+                deletedAt: String(variables.deletedAt || new Date().toISOString()),
+                reason: typeof variables.reason === 'string' ? variables.reason : undefined,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    // Billing templates
+    if (template === 'subscription-created') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: SubscriptionCreatedEmail,
+            props: {
+                planName: String(variables.planName || ''),
+                interval: (variables.interval as 'day' | 'month' | 'year') || 'month',
+                amount: typeof variables.amount === 'number' ? variables.amount : 0,
+                currency: String(variables.currency || 'USD'),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'subscription-updated') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: SubscriptionUpdatedEmail,
+            props: {
+                changeType: (variables.changeType as 'upgrade' | 'downgrade' | 'update') || 'update',
+                newPlanName: String(variables.newPlanName || ''),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'subscription-cancelled') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: SubscriptionCancelledEmail,
+            props: {
+                effectiveAt: String(variables.effectiveAt || ''),
+                reason: typeof variables.reason === 'string' ? variables.reason : undefined,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'payment-succeeded') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: PaymentSucceededEmail,
+            props: {
+                amount: typeof variables.amount === 'number' ? variables.amount : 0,
+                currency: String(variables.currency || 'USD'),
+                invoiceId: typeof variables.invoiceId === 'string' ? variables.invoiceId : undefined,
+                receiptUrl: typeof variables.receiptUrl === 'string' ? variables.receiptUrl : undefined,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'payment-failed') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: PaymentFailedEmail,
+            props: {
+                amount: typeof variables.amount === 'number' ? variables.amount : 0,
+                currency: String(variables.currency || 'USD'),
+                failureReason: String(variables.failureReason || 'Unknown reason'),
+                nextRetryAt: typeof variables.nextRetryAt === 'string' ? variables.nextRetryAt : undefined,
+                updatePaymentUrl: String(variables.updatePaymentUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'}/dashboard/billing`),
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'refund-issued') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: RefundIssuedEmail,
+            props: {
+                amount: typeof variables.amount === 'number' ? variables.amount : 0,
+                currency: String(variables.currency || 'USD'),
+                reason: typeof variables.reason === 'string' ? variables.reason : undefined,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    // Application templates
+    if (template === 'application-reply') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: ApplicationReplyEmail,
+            props: {
+                applicantName: typeof variables.applicantName === 'string' ? variables.applicantName : undefined,
+                applicationId: String(variables.applicationId || ''),
+                replyUrl: String(variables.replyUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'}/dashboard`),
+                message: typeof variables.message === 'string' ? variables.message : '',
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'application-status') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: ApplicationStatusEmail,
+            props: {
+                applicantName: typeof variables.applicantName === 'string' ? variables.applicantName : undefined,
+                status: String(variables.status || ''),
+                applicationUrl: String(variables.applicationUrl || `${process.env.NEXT_PUBLIC_APP_URL || 'https://embrly.ca'}/dashboard`),
+                message: typeof variables.message === 'string' ? variables.message : undefined,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    if (template === 'bucket-credentials') {
+        const result = await sendTemplateEmail({
+            to,
+            subject,
+            template: BucketCredentialsEmail,
+            props: {
+                bucketName: String(variables.bucketName || ''),
+                accessKey: String(variables.accessKey || ''),
+                secretKey: String(variables.secretKey || ''),
+                endpoint: String(variables.endpoint || ''),
+                region: typeof variables.region === 'string' ? variables.region : undefined,
+            },
+            skipTracking: true,
+        })
+        return { messageId: result.id || `email-${Date.now()}` }
+    }
+
+    // Fallback: use BasicEmail for unknown templates
+    logger.warn('Unknown email template, using fallback', { template })
     const result = await sendTemplateEmail({
         to,
         subject,
@@ -212,13 +531,12 @@ async function sendEmail(options: {
             title: subject,
             preheader: typeof variables.preheader === 'string' ? variables.preheader : undefined,
             headline: typeof variables.headline === 'string' ? variables.headline : subject,
-            body: bodyContent,
+            body: typeof variables.body === 'string' ? [variables.body] : Array.isArray(variables.body) ? variables.body : [String(variables.body || '')],
             cta: variables.ctaLabel && variables.ctaHref
                 ? { label: String(variables.ctaLabel), href: String(variables.ctaHref) }
                 : undefined,
             footerNote: typeof variables.footerNote === 'string' ? variables.footerNote : undefined,
         },
-        // Skip tracking since event system already tracks email.send -> email.sent
         skipTracking: true,
     })
 

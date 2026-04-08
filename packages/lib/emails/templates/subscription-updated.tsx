@@ -9,33 +9,26 @@ import {
   Column,
   Text,
   Link,
-  Button,
   Hr,
   Preview,
 } from '@react-email/components'
 import { Tailwind } from '@react-email/tailwind'
 
-interface BasicEmailProps {
-  title: string
-  preheader?: string
-  headline?: string
-  body: string[]
-  cta?: { label: string; href: string }
-  footerNote?: string
+interface SubscriptionUpdatedEmailProps {
+  changeType: 'upgrade' | 'downgrade' | 'update'
+  newPlanName: string
 }
 
-export function BasicEmail({
-  title,
-  preheader,
-  headline = title,
-  body,
-  cta,
-  footerNote = `© ${new Date().getFullYear()} Emberly. All rights reserved.`,
-}: BasicEmailProps) {
+export function SubscriptionUpdatedEmail({
+  changeType,
+  newPlanName,
+}: SubscriptionUpdatedEmailProps) {
+  const changeLabel = changeType === 'upgrade' ? 'upgraded' : changeType === 'downgrade' ? 'downgraded' : 'updated'
+
   return (
     <Html>
       <Head>
-        <Preview>{preheader || headline || title}</Preview>
+        <Preview>Your Emberly subscription has been {changeLabel}</Preview>
       </Head>
       <Tailwind>
         <Body className="bg-white font-sans">
@@ -53,42 +46,38 @@ export function BasicEmail({
               </Row>
             </Section>
 
+            {/* Alert Banner */}
+            <Section className="mb-6 border-l-4 border-blue-500 rounded-lg bg-blue-50 p-4">
+              <Text className="m-0 text-sm font-semibold text-blue-800">
+                ℹ️ Subscription {changeLabel.charAt(0).toUpperCase() + changeLabel.slice(1)}
+              </Text>
+            </Section>
+
             {/* Main content */}
             <Section className="border border-gray-200 rounded-lg bg-white p-8">
               <Row>
                 <Column>
                   <Text className="m-0 mb-4 text-2xl font-bold text-gray-900">
-                    {headline}
+                    Your subscription has been {changeLabel}
                   </Text>
                 </Column>
               </Row>
 
               <Row>
                 <Column>
-                  {body.map((line, idx) => (
-                    <Text
-                      key={idx}
-                      className="m-0 mb-4 text-base leading-relaxed text-gray-700"
-                    >
-                      {line}
-                    </Text>
-                  ))}
+                  <Text className="m-0 mb-6 text-base leading-relaxed text-gray-700">
+                    Your Emberly subscription has been successfully {changeLabel} to the <strong>{newPlanName}</strong> plan. Your changes take effect immediately.
+                  </Text>
                 </Column>
               </Row>
 
-              {/* CTA Button */}
-              {cta && (
-                <Row className="mt-6">
-                  <Column align="center">
-                    <Button
-                      href={cta.href}
-                      className="rounded-lg bg-orange-600 px-8 py-3 text-center text-base font-semibold text-white no-underline"
-                    >
-                      {cta.label}
-                    </Button>
-                  </Column>
-                </Row>
-              )}
+              <Row className="mt-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+                <Column>
+                  <Text className="m-0 text-sm text-blue-800">
+                    <strong>ℹ️ Next steps:</strong> Your new plan features are now active. Visit your dashboard to review your updated benefits and settings.
+                  </Text>
+                </Column>
+              </Row>
             </Section>
 
             {/* Footer */}
@@ -97,7 +86,7 @@ export function BasicEmail({
               <Row className="mt-8">
                 <Column align="center">
                   <Text className="m-0 text-xs text-gray-500">
-                    {footerNote}
+                    © {new Date().getFullYear()} Emberly. All rights reserved.
                   </Text>
                 </Column>
               </Row>
