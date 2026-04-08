@@ -9,33 +9,24 @@ import {
   Column,
   Text,
   Link,
-  Button,
   Hr,
   Preview,
 } from '@react-email/components'
 import { Tailwind } from '@react-email/tailwind'
 
-interface BasicEmailProps {
-  title: string
-  preheader?: string
-  headline?: string
-  body: string[]
-  cta?: { label: string; href: string }
-  footerNote?: string
+interface AccountDeletedEmailProps {
+  deletedAt: string
+  reason?: string
 }
 
-export function BasicEmail({
-  title,
-  preheader,
-  headline = title,
-  body,
-  cta,
-  footerNote = `© ${new Date().getFullYear()} Emberly. All rights reserved.`,
-}: BasicEmailProps) {
+export function AccountDeletedEmail({
+  deletedAt,
+  reason,
+}: AccountDeletedEmailProps) {
   return (
     <Html>
       <Head>
-        <Preview>{preheader || headline || title}</Preview>
+        <Preview>Your Emberly account has been deleted</Preview>
       </Head>
       <Tailwind>
         <Body className="bg-white font-sans">
@@ -53,42 +44,46 @@ export function BasicEmail({
               </Row>
             </Section>
 
+            {/* Alert Banner */}
+            <Section className="mb-6 border-l-4 border-gray-500 rounded-lg bg-gray-50 p-4">
+              <Text className="m-0 text-sm font-semibold text-gray-800">
+                Account Deleted
+              </Text>
+            </Section>
+
             {/* Main content */}
             <Section className="border border-gray-200 rounded-lg bg-white p-8">
               <Row>
                 <Column>
                   <Text className="m-0 mb-4 text-2xl font-bold text-gray-900">
-                    {headline}
+                    Your account has been deleted
                   </Text>
                 </Column>
               </Row>
 
               <Row>
                 <Column>
-                  {body.map((line, idx) => (
-                    <Text
-                      key={idx}
-                      className="m-0 mb-4 text-base leading-relaxed text-gray-700"
-                    >
-                      {line}
+                  <Text className="m-0 mb-4 text-base leading-relaxed text-gray-700">
+                    Your Emberly account has been permanently deleted. All associated data, files, and settings have been removed from our servers.
+                  </Text>
+                  {reason && (
+                    <Text className="m-0 mb-4 text-base leading-relaxed text-gray-700">
+                      <strong>Reason:</strong> {reason}
                     </Text>
-                  ))}
+                  )}
+                  <Text className="m-0 mb-6 text-sm text-gray-600">
+                    <strong>Deleted:</strong> {new Date(deletedAt).toLocaleString()}
+                  </Text>
                 </Column>
               </Row>
 
-              {/* CTA Button */}
-              {cta && (
-                <Row className="mt-6">
-                  <Column align="center">
-                    <Button
-                      href={cta.href}
-                      className="rounded-lg bg-orange-600 px-8 py-3 text-center text-base font-semibold text-white no-underline"
-                    >
-                      {cta.label}
-                    </Button>
-                  </Column>
-                </Row>
-              )}
+              <Row className="mt-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
+                <Column>
+                  <Text className="m-0 text-sm text-gray-800">
+                    <strong>ℹ️ What happens next:</strong> Your account and all associated data cannot be recovered. If you have any questions, feel free to contact our support team.
+                  </Text>
+                </Column>
+              </Row>
             </Section>
 
             {/* Footer */}
@@ -97,7 +92,7 @@ export function BasicEmail({
               <Row className="mt-8">
                 <Column align="center">
                   <Text className="m-0 text-xs text-gray-500">
-                    {footerNote}
+                    © {new Date().getFullYear()} Emberly. All rights reserved.
                   </Text>
                 </Column>
               </Row>
