@@ -116,6 +116,8 @@ model User {
   nexiumOpportunities    NexiumOpportunity[] @relation("NexiumOpportunityPoster")
   ownedSquads            NexiumSquad[]       @relation("NexiumSquadOwner")
   nexiumSquadMemberships NexiumSquadMember[]
+  nexiumSquadInvites     NexiumSquadInvite[] @relation("InvitedUser")
+  nexiumSquadInvitesSent NexiumSquadInvite[] @relation("InviteSender")
   bansReceived           UserBan[]           @relation("BannedUser")
   bansIssued             UserBan[]           @relation("BanIssuer")
   reportsReceived        UserReport[]        @relation("ReportedUser")
@@ -161,6 +163,9 @@ model File {
   flagReason       String?
   flaggedBy        User?                @relation("FileFlaggedBy", fields: [flaggedById], references: [id], onDelete: SetNull)
   user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Squad association — null for personal files
+  squadId          String?
+  squad            NexiumSquad?         @relation(fields: [squadId], references: [id], onDelete: SetNull)
   editSuggestions  FileEditSuggestion[]
   collaborators    FileCollaborator[]
   contentReports   ContentReport[]
@@ -168,6 +173,7 @@ model File {
   @@index([visibility, uploadedAt]) // Recent public files
   @@index([isOcrProcessed]) // Worker queue filtering
   @@index([flagged])
+  @@index([squadId])
 }
 
 // Collaborators who can edit a file
@@ -642,12 +648,21 @@ model NexiumSquad {
   name        String
   slug        String            @unique
   description String?
+  tagline     String? // Short one-liner shown on cards (≤120 chars)
+  logo        String? // Logo/avatar URL
+  banner      String? // Banner/cover image URL
   ownerUserId String
   status      NexiumSquadStatus @default(FORMING)
   skills      String[]          @default([])
   maxSize     Int               @default(5)
   isPublic    Boolean           @default(true)
   isVerified  Boolean           @default(false)
+
+  // Social & web presence
+  website String?
+  twitter String?
+  github  String?
+  discord String?
 
   // Custom storage bucket assignment (overrides global default)
   storageBucketId String?
@@ -664,9 +679,11 @@ model NexiumSquad {
 
   owner         User                      @relation("NexiumSquadOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   members       NexiumSquadMember[]
+  invites       NexiumSquadInvite[]
   subscriptions NexiumSquadSubscription[]
   apiKeys       NexiumSquadApiKey[]
   customDomains CustomDomain[]
+  files         File[]
   reports       SquadReport[]
 
   @@index([status, isPublic])
@@ -686,6 +703,34 @@ model NexiumSquadMember {
   @@unique([squadId, userId])
   @@index([squadId])
   @@index([userId])
+}
+
+model NexiumSquadInvite {
+  id          String                  @id @default(cuid())
+  squadId     String
+  userId      String
+  invitedById String
+  token       String                  @unique @default(cuid())
+  status      NexiumSquadInviteStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  squad     NexiumSquad @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  user      User        @relation("InvitedUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User        @relation("InviteSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([squadId, userId])
+  @@index([userId])
+  @@index([squadId])
+  @@index([token])
+}
+
+enum NexiumSquadInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
 }
 
 // Squad billing — same plan products as users, scoped per squad

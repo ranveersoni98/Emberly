@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -13,14 +13,15 @@ import {
   Plus,
   RefreshCw,
   Settings,
-  Shield,
   Trash2,
   Upload,
   UserMinus,
+  UserPlus,
   Users,
-  Zap,
   Eye,
   EyeOff,
+  Search,
+  Loader2,
 } from 'lucide-react'
 
 import { Badge } from '@/packages/components/ui/badge'
@@ -32,6 +33,14 @@ import { useToast } from '@/packages/hooks/use-toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type SquadMember = {
+  id: string
+  userId: string
+  role: string
+  joinedAt: string
+  user: { id: string; name: string | null; image: string | null; urlId: string }
+}
+
 type Squad = {
   id: string
   name: string
@@ -41,14 +50,27 @@ type Squad = {
   isPublic: boolean
   maxSize: number
   skills: string[]
-  owner: { name: string | null; image: string | null; urlId: string }
-  members: Array<{
-    id: string
-    role: string
-    joinedAt: string
-    user: { name: string | null; image: string | null; urlId: string }
-  }>
+  owner: { id: string; name: string | null; image: string | null; urlId: string }
+  members: SquadMember[]
   _count: { members: number }
+}
+
+type SquadInvite = {
+  id: string
+  token: string
+  status: string
+  expiresAt: string
+  createdAt: string
+  user: { id: string; name: string | null; image: string | null; urlId: string; email: string | null }
+  invitedBy: { id: string; name: string | null }
+}
+
+type UserSearchResult = {
+  id: string
+  name: string | null
+  image: string | null
+  urlId: string
+  email: string | null
 }
 
 type ApiKeyInfo = {
@@ -106,13 +128,28 @@ const TABS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SquadDashboardClient({ squadId, role }: { squadId: string; role: string }) {
+export function SquadDashboardClient({
+  squadId,
+  role,
+  embedded,
+  activeTab,
+  onTabChange,
+}: {
+  squadId: string
+  role: string
+  embedded?: boolean
+  activeTab?: string
+  onTabChange?: (tab: string) => void
+}) {
   const { toast } = useToast()
   const isOwner = role === 'OWNER'
 
   const [squad, setSquad] = useState<Squad | null>(null)
   const [tab, setTab] = useState('overview')
   const [loading, setLoading] = useState(true)
+
+  const currentTab = embedded && activeTab !== undefined ? activeTab : tab
+  const handleTabSwitch = embedded && onTabChange ? onTabChange : setTab
 
   // Data for each tab loaded lazily
   const [apiKeys, setApiKeys] = useState<ApiKeyInfo[] | null>(null)
@@ -122,6 +159,10 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
   const [tokenVisible, setTokenVisible] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
 
+  // Pending invites (owner only)
+  const [invites, setInvites] = useState<SquadInvite[] | null>(null)
+  const [revokingInvite, setRevokingInvite] = useState<string | null>(null)
+
   // ─── Fetch helpers ────────────────────────────────────────────────────
 
   const fetchSquad = useCallback(async () => {
@@ -129,7 +170,8 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
       const res = await fetch(`/api/discovery/squads/${squadId}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
-      setSquad(data.data)
+      // API returns apiResponse(squad) → data.data is the squad directly
+      setSquad(data.data as Squad)
     } catch {
       toast({ title: 'Error', description: 'Failed to load squad', variant: 'destructive' })
     } finally {
@@ -159,6 +201,18 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
     }
   }, [squadId, toast])
 
+  const fetchInvites = useCallback(async () => {
+    if (!isOwner) return
+    try {
+      const res = await fetch(`/api/discovery/squads/${squadId}/invites`)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setInvites(data.data?.invites ?? [])
+    } catch {
+      setInvites([])
+    }
+  }, [squadId, isOwner])
+
   const fetchQuota = useCallback(async () => {
     try {
       const res = await fetch(`/api/discovery/squads/${squadId}/quota`)
@@ -182,16 +236,20 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
     }
   }, [squadId, isOwner])
 
-  // ─── Lazy load on tab switch ──────────────────────────────────────────
-
-  useEffect(() => { fetchSquad() }, [fetchSquad])
+  // ─── Initial load: squad + overview counts ───────────────────────────────
 
   useEffect(() => {
-    if (tab === 'keys' && apiKeys === null) fetchApiKeys()
-    if (tab === 'domains' && domains === null) fetchDomains()
-    if (tab === 'storage' && quota === null) fetchQuota()
-    if (tab === 'uploads' && uploadToken === null) fetchToken()
-  }, [tab, apiKeys, domains, quota, uploadToken, fetchApiKeys, fetchDomains, fetchQuota, fetchToken])
+    fetchSquad()
+    // Pre-fetch counts for overview stat cards
+    fetchApiKeys()
+    fetchDomains()
+    if (isOwner) fetchInvites()
+  }, [fetchSquad, fetchApiKeys, fetchDomains, fetchInvites, isOwner])
+
+  useEffect(() => {
+    if (currentTab === 'storage' && quota === null) fetchQuota()
+    if (currentTab === 'uploads' && uploadToken === null) fetchToken()
+  }, [currentTab, quota, uploadToken, fetchQuota, fetchToken])
 
   // ─── Actions ──────────────────────────────────────────────────────────
 
@@ -301,18 +359,107 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
 
   // ─── Member management ────────────────────────────────────────────────
 
-  const kickMember = useCallback(async (userId: string) => {
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberSearchResults, setMemberSearchResults] = useState<UserSearchResult[]>([])
+  const [memberSearchLoading, setMemberSearchLoading] = useState(false)
+  const [addingMember, setAddingMember] = useState<string | null>(null)
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null)
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const searchUsers = useCallback((query: string) => {
+    setMemberSearch(query)
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    if (!query.trim()) { setMemberSearchResults([]); return }
+    searchDebounce.current = setTimeout(async () => {
+      setMemberSearchLoading(true)
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&limit=8`)
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+        setMemberSearchResults(data.data?.users ?? [])
+      } catch {
+        setMemberSearchResults([])
+      } finally {
+        setMemberSearchLoading(false)
+      }
+    }, 300)
+  }, [])
+
+  const addMember = useCallback(async (userId: string) => {
+    setAddingMember(userId)
     try {
-      const res = await fetch(`/api/discovery/squads/${squadId}/members`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/discovery/squads/${squadId}/invites`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send invite')
+      toast({ title: 'Invite sent', description: 'The user will receive an email to accept.' })
+      setMemberSearch('')
+      setMemberSearchResults([])
+      fetchInvites()
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+    } finally {
+      setAddingMember(null)
+    }
+  }, [squadId, fetchInvites, toast])
+
+  const revokeInvite = useCallback(async (inviteId: string) => {
+    setRevokingInvite(inviteId)
+    try {
+      const res = await fetch(`/api/discovery/squads/${squadId}/invites/${inviteId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to revoke invite')
+      }
+      setInvites((prev) => prev?.filter((i) => i.id !== inviteId) ?? null)
+      toast({ title: 'Invite revoked' })
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+    } finally {
+      setRevokingInvite(null)
+    }
+  }, [squadId, toast])
+
+  const kickMember = useCallback(async (userId: string) => {
+    try {
+      // Must be POST with kick:true — DELETE is only for self-leave
+      const res = await fetch(`/api/discovery/squads/${squadId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, kick: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to remove member')
+      }
       fetchSquad()
       toast({ title: 'Member removed' })
-    } catch {
-      toast({ title: 'Error', description: 'Failed to remove member', variant: 'destructive' })
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+    }
+  }, [squadId, fetchSquad, toast])
+
+  const setMemberRole = useCallback(async (userId: string, newRole: string) => {
+    setUpdatingRole(userId)
+    try {
+      const res = await fetch(`/api/discovery/squads/${squadId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to update role')
+      }
+      fetchSquad()
+      toast({ title: 'Role updated' })
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+    } finally {
+      setUpdatingRole(null)
     }
   }, [squadId, fetchSquad, toast])
 
@@ -320,7 +467,7 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
 
   if (loading) {
     return (
-      <div className="container">
+      <div className={embedded ? '' : 'container'}>
         <div className="py-8 text-center text-muted-foreground">Loading…</div>
       </div>
     )
@@ -328,41 +475,15 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
 
   if (!squad) {
     return (
-      <div className="container">
+      <div className={embedded ? '' : 'container'}>
         <div className="py-8 text-center text-muted-foreground">Squad not found</div>
       </div>
     )
   }
 
-  return (
-    <div className="container space-y-6">
-      {/* Header */}
-      <div className="glass-card">
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Link
-              href="/dashboard/discovery"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold tracking-tight">{squad.name}</h1>
-                <Badge variant="outline" className={STATUS_COLORS[squad.status] || ''}>
-                  {squad.status}
-                </Badge>
-              </div>
-              {squad.description && (
-                <p className="text-muted-foreground mt-1">{squad.description}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+  const tabsContent = (
+    <Tabs value={currentTab} onValueChange={handleTabSwitch} className="space-y-6">
+      {!embedded && (
         <TabsList className="w-full h-auto flex-wrap justify-start gap-1 p-1.5 glass-subtle rounded-xl">
           {TABS.map((t) => {
             const Icon = t.icon
@@ -378,6 +499,7 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
             )
           })}
         </TabsList>
+      )}
 
         {/* ─── Overview ──────────────────────────────────────────── */}
         <TabsContent value="overview">
@@ -439,43 +561,175 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
         {/* ─── Members ──────────────────────────────────────────── */}
         <TabsContent value="members">
           <GlassCard>
-            <div className="p-6 space-y-4">
-              <h2 className="text-lg font-semibold">Members ({squad.members.length})</h2>
-              <div className="space-y-3">
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">
+                  Members ({squad.members.length}/{squad.maxSize})
+                </h2>
+              </div>
+
+              {/* Add member — owner only */}
+              {isOwner && (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search users to add…"
+                      value={memberSearch}
+                      onChange={(e) => searchUsers(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 text-sm rounded-xl bg-muted/30 border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                    {memberSearchLoading && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {memberSearchResults.length > 0 && (
+                    <div className="glass-subtle rounded-xl divide-y divide-border/30 overflow-hidden">
+                      {memberSearchResults.map((u) => {
+                        const alreadyMember = squad.members.some((m) => m.user.id === u.id)
+                        return (
+                          <div key={u.id} className="flex items-center justify-between px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {u.image ? (
+                                <img src={u.image} alt="" className="w-7 h-7 rounded-full" />
+                              ) : (
+                                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
+                                  {(u.name || '?')[0]}
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-sm font-medium">{u.name || u.urlId}</p>
+                                {u.email && <p className="text-xs text-muted-foreground">{u.email}</p>}
+                              </div>
+                            </div>
+                            {alreadyMember ? (
+                              <Badge variant="outline" className="text-xs">Already a member</Badge>
+                            ) : invites?.some((i) => i.user.id === u.id) ? (
+                              <Badge variant="outline" className="text-xs bg-chart-4/20 text-chart-4 border-chart-4/30">Invited</Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5 h-7 text-xs"
+                                disabled={addingMember === u.id}
+                                onClick={() => addMember(u.id)}
+                              >
+                                {addingMember === u.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <UserPlus className="h-3 w-3" />}
+                                Invite
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Pending invites — owner only */}
+              {isOwner && invites !== null && invites.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Pending Invites ({invites.length})</h3>
+                  {invites.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="flex items-center justify-between glass-subtle rounded-xl p-3 sm:p-4 border border-chart-4/20"
+                    >
+                      <div className="flex items-center gap-3">
+                        {inv.user.image ? (
+                          <img src={inv.user.image} alt="" className="w-8 h-8 rounded-full opacity-70" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-muted/40 flex items-center justify-center text-sm font-medium text-muted-foreground">
+                            {(inv.user.name || '?')[0]}
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-medium">{inv.user.name || inv.user.urlId}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Invited · expires {new Date(inv.expiresAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs bg-chart-4/20 text-chart-4 border-chart-4/30">Pending</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => revokeInvite(inv.id)}
+                          disabled={revokingInvite === inv.id}
+                          title="Revoke invite"
+                        >
+                          {revokingInvite === inv.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <UserMinus className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Member list */}
+              <div className="space-y-2">
                 {squad.members.map((m) => (
                   <div
                     key={m.id}
-                    className="flex items-center justify-between glass-subtle rounded-xl p-4"
+                    className="flex items-center justify-between glass-subtle rounded-xl p-3 sm:p-4"
                   >
                     <div className="flex items-center gap-3">
                       {m.user.image ? (
-                        <img
-                          src={m.user.image}
-                          alt=""
-                          className="w-8 h-8 rounded-full"
-                        />
+                        <img src={m.user.image} alt="" className="w-8 h-8 rounded-full" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary">
                           {(m.user.name || '?')[0]}
                         </div>
                       )}
                       <div>
-                        <p className="font-medium">{m.user.name || m.user.urlId}</p>
+                        <Link href={`/${m.user.urlId}`} className="font-medium hover:text-primary transition-colors text-sm">
+                          {m.user.name || m.user.urlId}
+                        </Link>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Joined {new Date(m.joinedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Role badge / selector */}
+                      {isOwner && m.role !== 'OWNER' ? (
+                        <select
+                          value={m.role}
+                          disabled={updatingRole === m.userId}
+                          onChange={(e) => setMemberRole(m.userId, e.target.value)}
+                          className="text-xs rounded-lg px-2 py-1 bg-muted/40 border border-border/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                        >
+                          <option value="MEMBER">Member</option>
+                          <option value="OBSERVER">Observer</option>
+                        </select>
+                      ) : (
                         <Badge variant="outline" className={`text-xs ${ROLE_COLORS[m.role] || ''}`}>
                           {m.role}
                         </Badge>
-                      </div>
+                      )}
+
+                      {/* Kick button */}
+                      {isOwner && m.role !== 'OWNER' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => kickMember(m.user.id)}
+                          title="Remove from squad"
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                    {isOwner && m.role !== 'OWNER' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => kickMember(m.user.urlId)}
-                      >
-                        <UserMinus className="h-4 w-4" />
-                      </Button>
-                    )}
                   </div>
                 ))}
               </div>
@@ -767,6 +1021,38 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
           </GlassCard>
         </TabsContent>
       </Tabs>
+  )
+
+  if (embedded) return tabsContent
+
+  return (
+    <div className="container space-y-6">
+      {/* Header */}
+      <div className="glass-card">
+        <div className="p-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Link
+              href="/dashboard/discovery"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold tracking-tight">{squad.name}</h1>
+                <Badge variant="outline" className={STATUS_COLORS[squad.status] || ''}>
+                  {squad.status}
+                </Badge>
+              </div>
+              {squad.description && (
+                <p className="text-muted-foreground mt-1">{squad.description}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {tabsContent}
     </div>
   )
 }
