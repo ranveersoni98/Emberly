@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -13,14 +13,15 @@ import {
   Plus,
   RefreshCw,
   Settings,
-  Shield,
   Trash2,
   Upload,
   UserMinus,
+  UserPlus,
   Users,
-  Zap,
   Eye,
   EyeOff,
+  Search,
+  Loader2,
 } from 'lucide-react'
 
 import { Badge } from '@/packages/components/ui/badge'
@@ -32,6 +33,14 @@ import { useToast } from '@/packages/hooks/use-toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type SquadMember = {
+  id: string
+  userId: string
+  role: string
+  joinedAt: string
+  user: { id: string; name: string | null; image: string | null; urlId: string }
+}
+
 type Squad = {
   id: string
   name: string
@@ -41,14 +50,17 @@ type Squad = {
   isPublic: boolean
   maxSize: number
   skills: string[]
-  owner: { name: string | null; image: string | null; urlId: string }
-  members: Array<{
-    id: string
-    role: string
-    joinedAt: string
-    user: { name: string | null; image: string | null; urlId: string }
-  }>
+  owner: { id: string; name: string | null; image: string | null; urlId: string }
+  members: SquadMember[]
   _count: { members: number }
+}
+
+type UserSearchResult = {
+  id: string
+  name: string | null
+  image: string | null
+  urlId: string
+  email: string | null
 }
 
 type ApiKeyInfo = {
@@ -129,7 +141,8 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
       const res = await fetch(`/api/discovery/squads/${squadId}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
-      setSquad(data.data)
+      // API returns apiResponse(squad) → data.data is the squad directly
+      setSquad(data.data as Squad)
     } catch {
       toast({ title: 'Error', description: 'Failed to load squad', variant: 'destructive' })
     } finally {
@@ -182,16 +195,19 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
     }
   }, [squadId, isOwner])
 
-  // ─── Lazy load on tab switch ──────────────────────────────────────────
-
-  useEffect(() => { fetchSquad() }, [fetchSquad])
+  // ─── Initial load: squad + overview counts ───────────────────────────────
 
   useEffect(() => {
-    if (tab === 'keys' && apiKeys === null) fetchApiKeys()
-    if (tab === 'domains' && domains === null) fetchDomains()
+    fetchSquad()
+    // Pre-fetch counts for overview stat cards
+    fetchApiKeys()
+    fetchDomains()
+  }, [fetchSquad, fetchApiKeys, fetchDomains])
+
+  useEffect(() => {
     if (tab === 'storage' && quota === null) fetchQuota()
     if (tab === 'uploads' && uploadToken === null) fetchToken()
-  }, [tab, apiKeys, domains, quota, uploadToken, fetchApiKeys, fetchDomains, fetchQuota, fetchToken])
+  }, [tab, quota, uploadToken, fetchQuota, fetchToken])
 
   // ─── Actions ──────────────────────────────────────────────────────────
 
@@ -301,18 +317,90 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
 
   // ─── Member management ────────────────────────────────────────────────
 
-  const kickMember = useCallback(async (userId: string) => {
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberSearchResults, setMemberSearchResults] = useState<UserSearchResult[]>([])
+  const [memberSearchLoading, setMemberSearchLoading] = useState(false)
+  const [addingMember, setAddingMember] = useState<string | null>(null)
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null)
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const searchUsers = useCallback((query: string) => {
+    setMemberSearch(query)
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    if (!query.trim()) { setMemberSearchResults([]); return }
+    searchDebounce.current = setTimeout(async () => {
+      setMemberSearchLoading(true)
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&limit=8`)
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+        setMemberSearchResults(data.data?.users ?? [])
+      } catch {
+        setMemberSearchResults([])
+      } finally {
+        setMemberSearchLoading(false)
+      }
+    }, 300)
+  }, [])
+
+  const addMember = useCallback(async (userId: string) => {
+    setAddingMember(userId)
     try {
       const res = await fetch(`/api/discovery/squads/${squadId}/members`, {
-        method: 'DELETE',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to add member')
+      toast({ title: 'Member added' })
+      setMemberSearch('')
+      setMemberSearchResults([])
+      fetchSquad()
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+    } finally {
+      setAddingMember(null)
+    }
+  }, [squadId, fetchSquad, toast])
+
+  const kickMember = useCallback(async (userId: string) => {
+    try {
+      // Must be POST with kick:true — DELETE is only for self-leave
+      const res = await fetch(`/api/discovery/squads/${squadId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, kick: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to remove member')
+      }
       fetchSquad()
       toast({ title: 'Member removed' })
-    } catch {
-      toast({ title: 'Error', description: 'Failed to remove member', variant: 'destructive' })
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+    }
+  }, [squadId, fetchSquad, toast])
+
+  const setMemberRole = useCallback(async (userId: string, newRole: string) => {
+    setUpdatingRole(userId)
+    try {
+      const res = await fetch(`/api/discovery/squads/${squadId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to update role')
+      }
+      fetchSquad()
+      toast({ title: 'Role updated' })
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+    } finally {
+      setUpdatingRole(null)
     }
   }, [squadId, fetchSquad, toast])
 
@@ -439,43 +527,129 @@ export function SquadDashboardClient({ squadId, role }: { squadId: string; role:
         {/* ─── Members ──────────────────────────────────────────── */}
         <TabsContent value="members">
           <GlassCard>
-            <div className="p-6 space-y-4">
-              <h2 className="text-lg font-semibold">Members ({squad.members.length})</h2>
-              <div className="space-y-3">
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">
+                  Members ({squad.members.length}/{squad.maxSize})
+                </h2>
+              </div>
+
+              {/* Add member — owner only */}
+              {isOwner && (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search users to add…"
+                      value={memberSearch}
+                      onChange={(e) => searchUsers(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 text-sm rounded-xl bg-muted/30 border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                    {memberSearchLoading && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {memberSearchResults.length > 0 && (
+                    <div className="glass-subtle rounded-xl divide-y divide-border/30 overflow-hidden">
+                      {memberSearchResults.map((u) => {
+                        const alreadyMember = squad.members.some((m) => m.user.id === u.id)
+                        return (
+                          <div key={u.id} className="flex items-center justify-between px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {u.image ? (
+                                <img src={u.image} alt="" className="w-7 h-7 rounded-full" />
+                              ) : (
+                                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
+                                  {(u.name || '?')[0]}
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-sm font-medium">{u.name || u.urlId}</p>
+                                {u.email && <p className="text-xs text-muted-foreground">{u.email}</p>}
+                              </div>
+                            </div>
+                            {alreadyMember ? (
+                              <Badge variant="outline" className="text-xs">Already a member</Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5 h-7 text-xs"
+                                disabled={addingMember === u.id}
+                                onClick={() => addMember(u.id)}
+                              >
+                                {addingMember === u.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <UserPlus className="h-3 w-3" />}
+                                Add
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Member list */}
+              <div className="space-y-2">
                 {squad.members.map((m) => (
                   <div
                     key={m.id}
-                    className="flex items-center justify-between glass-subtle rounded-xl p-4"
+                    className="flex items-center justify-between glass-subtle rounded-xl p-3 sm:p-4"
                   >
                     <div className="flex items-center gap-3">
                       {m.user.image ? (
-                        <img
-                          src={m.user.image}
-                          alt=""
-                          className="w-8 h-8 rounded-full"
-                        />
+                        <img src={m.user.image} alt="" className="w-8 h-8 rounded-full" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary">
                           {(m.user.name || '?')[0]}
                         </div>
                       )}
                       <div>
-                        <p className="font-medium">{m.user.name || m.user.urlId}</p>
+                        <Link href={`/${m.user.urlId}`} className="font-medium hover:text-primary transition-colors text-sm">
+                          {m.user.name || m.user.urlId}
+                        </Link>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Joined {new Date(m.joinedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Role badge / selector */}
+                      {isOwner && m.role !== 'OWNER' ? (
+                        <select
+                          value={m.role}
+                          disabled={updatingRole === m.userId}
+                          onChange={(e) => setMemberRole(m.userId, e.target.value)}
+                          className="text-xs rounded-lg px-2 py-1 bg-muted/40 border border-border/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                        >
+                          <option value="MEMBER">Member</option>
+                          <option value="OBSERVER">Observer</option>
+                        </select>
+                      ) : (
                         <Badge variant="outline" className={`text-xs ${ROLE_COLORS[m.role] || ''}`}>
                           {m.role}
                         </Badge>
-                      </div>
+                      )}
+
+                      {/* Kick button */}
+                      {isOwner && m.role !== 'OWNER' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => kickMember(m.user.id)}
+                          title="Remove from squad"
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                    {isOwner && m.role !== 'OWNER' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => kickMember(m.user.urlId)}
-                      >
-                        <UserMinus className="h-4 w-4" />
-                      </Button>
-                    )}
                   </div>
                 ))}
               </div>

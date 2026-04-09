@@ -13,7 +13,7 @@ import {
   apiResponse,
   paginatedResponse,
 } from '@/packages/lib/api/response'
-import { requireAuth } from '@/packages/lib/auth/api-auth'
+import { getSquadFromBearerToken, requireAuth } from '@/packages/lib/auth/api-auth'
 import { getConfig } from '@/packages/lib/config'
 import { prisma } from '@/packages/lib/database/prisma'
 import {
@@ -35,9 +35,38 @@ export async function POST(req: Request) {
   let userId: string | undefined
 
   try {
-    const { user, response } = await requireAuth(req)
+    // ── Auth: try squad token/API key first, then fall back to user session ──
+    const squad = await getSquadFromBearerToken(req)
+
+    let user: Awaited<ReturnType<typeof requireAuth>>['user'] | null = null
+    let squadContext: typeof squad = null
+
+    if (squad) {
+      // Authenticated as a squad — load the owner as the acting user
+      const ownerUser = await prisma.user.findUnique({
+        where: { id: squad.ownerUserId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          storageUsed: true,
+          storageQuotaMB: true,
+          urlId: true,
+          role: true,
+          randomizeFileUrls: true,
+          preferredUploadDomain: true,
+        },
+      })
+      if (!ownerUser) return apiError('Squad owner not found', HTTP_STATUS.UNAUTHORIZED)
+      user = ownerUser
+      squadContext = squad
+    } else {
+      const auth = await requireAuth(req)
+      if (auth.response) return auth.response
+      user = auth.user
+    }
     userId = user?.id
-    if (response) return response
+    if (!user) return apiError('Unauthorized', HTTP_STATUS.UNAUTHORIZED)
 
     let formData: FormData
     try {
@@ -95,13 +124,27 @@ export async function POST(req: Request) {
         }
       }
       
-      // Check storage quota
-      const uploadCheck = await canUploadSize(user.id, fileSizeMB)
-      if (!uploadCheck.allowed) {
-        return apiError(
-          uploadCheck.reason || 'Storage quota exceeded. Purchase additional storage to continue uploading.',
-          HTTP_STATUS.PAYLOAD_TOO_LARGE
-        )
+      // For squad uploads, also check squad storage quota
+      if (squadContext) {
+        const squadQuotaMB = squadContext.storageQuotaMB
+        if (squadQuotaMB !== null) {
+          const squadUsedMB = bytesToMB(squadContext.storageUsed)
+          if (squadUsedMB + fileSizeMB > squadQuotaMB) {
+            return apiError(
+              'Squad storage quota exceeded.',
+              HTTP_STATUS.PAYLOAD_TOO_LARGE
+            )
+          }
+        }
+      } else {
+        // Check individual user storage quota
+        const uploadCheck = await canUploadSize(user.id, fileSizeMB)
+        if (!uploadCheck.allowed) {
+          return apiError(
+            uploadCheck.reason || 'Storage quota exceeded. Purchase additional storage to continue uploading.',
+            HTTP_STATUS.PAYLOAD_TOO_LARGE
+          )
+        }
       }
     }
 
@@ -199,12 +242,16 @@ export async function POST(req: Request) {
 
       await tx.user.update({
         where: { id: user.id },
-        data: {
-          storageUsed: {
-            increment: bytesToMB(uploadedFile.size),
-          },
-        },
+        data: { storageUsed: { increment: bytesToMB(uploadedFile.size) } },
       })
+
+      // Track squad storage usage when uploaded via squad token/API key
+      if (squadContext) {
+        await tx.nexiumSquad.update({
+          where: { id: squadContext.squadId },
+          data: { storageUsed: { increment: uploadedFile.size } },
+        })
+      }
 
       return file
     })

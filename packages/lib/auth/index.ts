@@ -144,6 +144,13 @@ export const authOptions: NextAuthOptions = {
         if (credentials.token) {
            const hashedToken = (await import('crypto')).createHash('sha256').update(credentials.token).digest('hex')
 
+           console.log('[Auth] Magic link validation:', {
+             userId: user.id,
+             email: user.email,
+             hashedToken: hashedToken.substring(0, 10) + '...',
+             now: new Date().toISOString()
+           })
+
            // Verify token and expiry, and ensure it matches the user
            const validUser = await prisma.user.findFirst({
              where: {
@@ -153,10 +160,27 @@ export const authOptions: NextAuthOptions = {
              },
              select: userSelect
            })
-           
+
            if (!validUser) {
+             // Debug info
+             const dbUser = await prisma.user.findUnique({
+               where: { id: user.id },
+               select: {
+                 email: true,
+                 magicLinkToken: true,
+                 magicLinkExpires: true
+               }
+             })
+             console.log('[Auth] Magic link validation failed:', {
+               userId: user.id,
+               storedToken: dbUser?.magicLinkToken ? dbUser.magicLinkToken.substring(0, 10) + '...' : 'null',
+               storedExpires: dbUser?.magicLinkExpires,
+               isExpired: dbUser?.magicLinkExpires ? new Date() > dbUser.magicLinkExpires : 'unknown'
+             })
              return null
            }
+
+           console.log('[Auth] Magic link token validated successfully')
 
            // Check if user has 2FA enabled and code not provided
            if (validUser.twoFactorEnabled && !credentials.twoFactorCode) {

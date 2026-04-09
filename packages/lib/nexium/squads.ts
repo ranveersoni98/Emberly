@@ -33,9 +33,9 @@ export type UpdateSquadInput = Partial<CreateSquadInput> & { status?: NexiumSqua
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 const SQUAD_INCLUDE = {
-  owner: { select: { name: true, image: true, urlId: true } },
+  owner: { select: { id: true, name: true, image: true, urlId: true } },
   members: {
-    include: { user: { select: { name: true, image: true, urlId: true } } },
+    include: { user: { select: { id: true, name: true, image: true, urlId: true } } },
     orderBy: { joinedAt: 'asc' } as const,
   },
   _count: { select: { members: true } },

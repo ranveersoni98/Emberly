@@ -33,13 +33,32 @@ export async function POST(req: Request) {
         // Generate secure token
         const { token, hashedToken, expiresAt } = generateSecureToken(15 * 60 * 1000)
 
+        console.log('[Magic Link Send] Generated token:', {
+          email: user.email,
+          tokenLength: token.length,
+          hashedTokenPrefix: hashedToken.substring(0, 10) + '...',
+          expiresAt
+        })
+
         // Store hashed token
-        await prisma.user.update({
+        const updateResult = await prisma.user.update({
             where: { id: user.id },
             data: {
                 magicLinkToken: hashedToken,
                 magicLinkExpires: expiresAt,
             },
+            select: {
+              id: true,
+              email: true,
+              magicLinkToken: true,
+              magicLinkExpires: true
+            }
+        })
+
+        console.log('[Magic Link Send] Token stored in DB:', {
+          email: updateResult.email,
+          storedToken: updateResult.magicLinkToken ? updateResult.magicLinkToken.substring(0, 10) + '...' : 'null',
+          storedExpires: updateResult.magicLinkExpires
         })
 
         const baseUrl = getBaseUrl()
