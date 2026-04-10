@@ -4,7 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on "Keep a Changelog" and follows [Semantic Versioning](https://semver.org/).
 
-## [2.3.0] - 2026-04-09
+## [2.4.0] - 2026-04-09
+
+### Added
+- **Full-Width Hero Cards on All Dashboard & Admin Pages** — Every dashboard and admin page now renders a full-width glass hero/title card *above* the `[sidebar | content]` flex row, rather than inside it.
+  - `DashboardShell` gains an optional `header?: React.ReactNode` prop; when provided it renders above the sidebar+content layout.
+  - `AdminShell` gains the same `header` prop with identical behaviour.
+  - All 10+ dashboard pages (`/dashboard`, `/dashboard/files`, `/dashboard/analytics`, `/dashboard/upload`, `/dashboard/urls`, `/dashboard/domains`, `/dashboard/paste`, `/dashboard/verification-codes`, `/dashboard/bucket`, `/dashboard/discovery`) updated to pass their hero as the `header` prop.
+  - All 11+ admin pages (`/admin`, `/admin/users`, `/admin/blog`, `/admin/legal`, `/admin/settings`, `/admin/logs`, `/admin/email`, `/admin/testimonials`, `/admin/partners`, `/admin/products`, `/admin/reports`, `/admin/applications`) updated with the same pattern.
+  - Hero glass-cards extracted from client components (`DashboardIndex`, `AnalyticsOverview`, `AdminOverviewContent`) — server pages now own the hero and pass it down; client components render content only.
+  - `DashboardShell` removed from `dashboard/layout.tsx`; each page wraps individually so the shell only appears once.
+- **Discovery Mobile Tab Navigation** — The Discovery page previously relied on the sidebar for section navigation, leaving mobile users with no way to switch between Talent and Squads or navigate talent sub-sections.
+  - `NexiumDashboardClient` now renders two horizontally-scrollable tab strips on mobile (`lg:hidden`) when not in squad-detail view.
+  - Top strip: **Talent Profile** / **Squads** — controls the `selectedTab` state.
+  - Sub-strip (Talent only): **Profile** / **Skills** / **Signals** / **Opportunities** / **Applications** — controls `talentSection`.
+  - Both strips match the existing dashboard sidebar mobile style (`glass-subtle rounded-xl p-1.5`, active state `bg-primary/10 text-primary border border-primary/20`).
+- **Discovery Navigation in Dashboard Sidebar** — Discovery sub-links moved from the old discovery-specific internal sidebar into the main `DashboardSidebar` as a collapsible expandable section.
+  - Sidebar shows a **Discovery** parent row with a `ChevronDown` toggle; children are **Talent Profile** and **Squads**.
+  - When on a talent sub-page, talent sub-links (Profile, Skills, Signals, Opportunities, Applications) render as indented secondary items below Talent Profile.
+  - Collapse/expand state is initialised to open when the user is already under `/dashboard/discovery`.
+
+### Fixed
+- **Double Navbar on `/me` Routes** — `ConditionalBaseNav` was hiding the base nav for `/dashboard` and `/admin` but not for `/me`, causing `DashboardWrapper`'s fixed glass navbar to render alongside the `<BaseNav />` from the main layout on profile pages.
+  - Added `/me` to the exclusion list in `conditional-base-nav.tsx`.
+- **`LogoutButton` Import in Discovery Page** — Import path `../../profile/logout-button` resolved to a non-existent directory after the profile page was moved to `/me`. Fixed to `../../me/logout-button`.
+- **`NexiumSquad.urlId` / `avatarUrl` Invalid Field References** — Prisma threw `PrismaClientValidationError` on the squad invite GET and accept routes because `urlId` and `avatarUrl` do not exist on `NexiumSquad` (fields are `slug` and `logo` respectively).
+  - `GET /api/discovery/invites` — squad select updated: `urlId` → `slug`, `avatarUrl` → `logo`.
+  - `GET /api/discovery/invites/[token]/accept` — same correction.
+  - `SquadIncomingInvite` type in `dashboard/discovery/client.tsx` updated to match.
+- **Squad Member Invite Flow** — Various issues in the invite accept/decline redirect flow corrected.
+- **Build Errors and GitHub Links** — Miscellaneous build failures and broken GitHub repository links resolved.
+
+
 
 ### Added
 - **Discovery Dashboard Redesign** — Full sidebar-controlled layout replacing the previous flat tab strip.
@@ -933,7 +964,7 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
   - Limits results to 20 most recent files ordered by upload date descending.
   - Generates full URLs for direct file access.
 - **Dashboard Profile Query Parameters** - URL-based tab navigation support.
-  - Added `?tab=` query parameter support to profile settings page (e.g., `/dashboard/profile?tab=security`).
+  - Added `?tab=` query parameter support to profile settings page (e.g., `/me?tab=security`).
   - Tab state syncs with URL using `window.history.pushState` for shareable links.
   - Initial tab selection reads from URL on page load with validation against available tabs.
   - Works with both tabs component and select menu for consistent navigation experience.
@@ -1161,7 +1192,7 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
 ### Changed
 - Server-side password verification when disabling 2FA: DELETE `/api/profile/2fa` now requires account password and verifies with `bcrypt.compare` before clearing 2FA.
 - Client robustness fixes: include credentials on profile/2fa fetches, unwrap API response envelope (`payload.data ?? payload`), visible fetch errors and debug logs to surface failures.
-- Navigation & UI tweaks: `BaseNav` avatar now links to `/dashboard/profile` to match `UserNav`, mobile sheet trigger/footers improved, and modal z-index/overflow fixes.
+- Navigation & UI tweaks: `BaseNav` avatar now links to `/me` to match `UserNav`, mobile sheet trigger/footers improved, and modal z-index/overflow fixes.
 - Navigation dropdown chevrons now animate/rotate on desktop for both base and dashboard navs.
 - Pricing page restructured into tabs (plans, add-ons, donations, FAQ) with billing toggle and expandable plan details.
 - Documentation pages now resolve from the database first and fall back to markdown; category routing and slug inference updated for integrations.
@@ -1213,7 +1244,7 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
 - Theme propagation and client hydration: `data-theme` is now set on the `<html>` element and a small client initializer ensures the system/site theme is applied before React hydration so client-only features (Snowfall, previews) reliably reflect system-level site appearance.
 - `hooks/use-profile.ts` now exposes `updateProfile()` and the profile API `PUT /api/profile` accepts `theme` and persists appearance changes.
 - Navigation and header updates:
-  - `BaseNav` aligned with `UserNav`: desktop avatar links directly to `/dashboard/profile`.
+  - `BaseNav` aligned with `UserNav`: desktop avatar links directly to `/me`.
   - Mobile sheet trigger moved to the right and renders the signed-in user's avatar (falls back to menu icon when not signed in).
   - Mobile sections are toggleable and only the `base` section is open by default.
   - Mobile sheet now closes automatically on footer actions (Sign In/Register/Profile/Dashboard/Sign Out).
