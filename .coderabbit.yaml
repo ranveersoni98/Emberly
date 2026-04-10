@@ -1,5 +1,5 @@
 language: en-US
-tone_instructions: "The tone of the generated content should be chill, relaxed, and easy-going. It should feel like a casual conversation with a friend, avoiding any formal or technical language. The content should be approachable and friendly, making it easy for readers to engage with and understand."
+tone_instructions: "Chill, relaxed tone like casual conversation. Keep it approachable and friendly, avoiding formal or technical language."
 early_access: false
 
 reviews:
