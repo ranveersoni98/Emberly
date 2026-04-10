@@ -7,35 +7,47 @@ The format is based on "Keep a Changelog" and follows [Semantic Versioning](http
 ## [2.4.0] - 2026-04-09
 
 ### Added
+- **Profile Route Moved to `/me`** — User profile settings previously lived at `/dashboard/profile`; now a standalone route at `/me` with its own layout and sidebar.
+  - `app/(main)/me/layout.tsx` — new layout using `DashboardWrapper` (dashboard nav, no footer).
+  - `app/(main)/me/page.tsx` — profile page powered by `ProfileClient` which has its own Account / Content / Engagement / Billing tab sidebar.
+  - `app/(main)/me/logout-button.tsx` — `LogoutButton` moved from `dashboard/profile/`.
+  - `/dashboard/profile` route removed; `/profile` redirect page updated to point at `/me`.
+  - OAuth callback routes (GitHub and Discord link/unlink) updated to redirect to `/me` after completion.
 - **Full-Width Hero Cards on All Dashboard & Admin Pages** — Every dashboard and admin page now renders a full-width glass hero/title card *above* the `[sidebar | content]` flex row, rather than inside it.
-  - `DashboardShell` gains an optional `header?: React.ReactNode` prop; when provided it renders above the sidebar+content layout.
+  - `DashboardShell` gains an optional `header?: React.ReactNode` prop; when provided it renders full-width above the sidebar+content flex row.
   - `AdminShell` gains the same `header` prop with identical behaviour.
-  - All 10+ dashboard pages (`/dashboard`, `/dashboard/files`, `/dashboard/analytics`, `/dashboard/upload`, `/dashboard/urls`, `/dashboard/domains`, `/dashboard/paste`, `/dashboard/verification-codes`, `/dashboard/bucket`, `/dashboard/discovery`) updated to pass their hero as the `header` prop.
-  - All 11+ admin pages (`/admin`, `/admin/users`, `/admin/blog`, `/admin/legal`, `/admin/settings`, `/admin/logs`, `/admin/email`, `/admin/testimonials`, `/admin/partners`, `/admin/products`, `/admin/reports`, `/admin/applications`) updated with the same pattern.
-  - Hero glass-cards extracted from client components (`DashboardIndex`, `AnalyticsOverview`, `AdminOverviewContent`) — server pages now own the hero and pass it down; client components render content only.
-  - `DashboardShell` removed from `dashboard/layout.tsx`; each page wraps individually so the shell only appears once.
+  - All dashboard pages (`/dashboard`, `/dashboard/files`, `/dashboard/analytics`, `/dashboard/upload`, `/dashboard/urls`, `/dashboard/domains`, `/dashboard/paste`, `/dashboard/verification-codes`, `/dashboard/bucket`, `/dashboard/discovery`) updated to pass their hero as `header`.
+  - All admin pages (`/admin`, `/admin/users`, `/admin/blog`, `/admin/legal`, `/admin/settings`, `/admin/logs`, `/admin/email`, `/admin/testimonials`, `/admin/partners`, `/admin/products`, `/admin/reports`, `/admin/applications`) updated with the same pattern.
+  - Hero glass-cards extracted from client components (`DashboardIndex`, `AnalyticsOverview`, `AdminOverviewContent`) — server pages own the hero, client components render content only.
+  - `DashboardShell` removed from `dashboard/layout.tsx`; each page wraps individually so the shell appears exactly once per page.
+- **New Sidebar Components** — Dedicated sidebar components for dashboard and admin panels.
+  - `packages/components/dashboard/dashboard-sidebar.tsx` — collapsible nav with all dashboard routes; Discovery section expands to show Talent Profile / Squads / talent sub-links; mobile horizontal scroll strip.
+  - `packages/components/admin/admin-sidebar.tsx` — admin panel nav with all admin routes and mobile scroll strip.
+- **Files Page** — New dedicated files page at `/dashboard/files`.
+  - `app/(main)/dashboard/files/page.tsx` + `client.tsx` — full file browser with filtering, sorting, and bulk actions.
+  - `packages/components/dashboard/file-grid/index.tsx` — significant improvements to the file grid component.
 - **Discovery Mobile Tab Navigation** — The Discovery page previously relied on the sidebar for section navigation, leaving mobile users with no way to switch between Talent and Squads or navigate talent sub-sections.
-  - `NexiumDashboardClient` now renders two horizontally-scrollable tab strips on mobile (`lg:hidden`) when not in squad-detail view.
+  - `NexiumDashboardClient` renders two horizontally-scrollable tab strips on mobile (`lg:hidden`) when not in squad-detail view.
   - Top strip: **Talent Profile** / **Squads** — controls the `selectedTab` state.
   - Sub-strip (Talent only): **Profile** / **Skills** / **Signals** / **Opportunities** / **Applications** — controls `talentSection`.
   - Both strips match the existing dashboard sidebar mobile style (`glass-subtle rounded-xl p-1.5`, active state `bg-primary/10 text-primary border border-primary/20`).
-- **Discovery Navigation in Dashboard Sidebar** — Discovery sub-links moved from the old discovery-specific internal sidebar into the main `DashboardSidebar` as a collapsible expandable section.
-  - Sidebar shows a **Discovery** parent row with a `ChevronDown` toggle; children are **Talent Profile** and **Squads**.
-  - When on a talent sub-page, talent sub-links (Profile, Skills, Signals, Opportunities, Applications) render as indented secondary items below Talent Profile.
-  - Collapse/expand state is initialised to open when the user is already under `/dashboard/discovery`.
+- **Discovery Navigation in Dashboard Sidebar** — Discovery sub-links integrated directly into `DashboardSidebar` as a collapsible expandable section, replacing the old discovery-specific internal sidebar.
+  - Parent row with `ChevronDown` toggle; children are **Talent Profile** and **Squads**.
+  - Talent sub-links (Profile, Skills, Signals, Opportunities, Applications) render as indented secondary items when on a talent sub-page.
+  - Expand state initialised to open when already under `/dashboard/discovery`.
 
 ### Fixed
-- **Double Navbar on `/me` Routes** — `ConditionalBaseNav` was hiding the base nav for `/dashboard` and `/admin` but not for `/me`, causing `DashboardWrapper`'s fixed glass navbar to render alongside the `<BaseNav />` from the main layout on profile pages.
+- **Double Navbar on `/me` Routes** — `ConditionalBaseNav` excluded `/dashboard` and `/admin` from the base nav but not `/me`, causing two navbars to render on the profile page (`<BaseNav />` from the main layout + `DashboardWrapper`'s fixed glass navbar).
   - Added `/me` to the exclusion list in `conditional-base-nav.tsx`.
-- **`LogoutButton` Import in Discovery Page** — Import path `../../profile/logout-button` resolved to a non-existent directory after the profile page was moved to `/me`. Fixed to `../../me/logout-button`.
-- **`NexiumSquad.urlId` / `avatarUrl` Invalid Field References** — Prisma threw `PrismaClientValidationError` on the squad invite GET and accept routes because `urlId` and `avatarUrl` do not exist on `NexiumSquad` (fields are `slug` and `logo` respectively).
+- **`LogoutButton` Import Broken After Profile Move** — `discovery/page.tsx` imported `LogoutButton` from `../../profile/logout-button` which no longer exists after the profile route moved to `/me`. Fixed to `../../me/logout-button`.
+- **`NexiumSquad.urlId` / `avatarUrl` Invalid Field References** — Prisma threw `PrismaClientValidationError` on the squad invite routes because `urlId` and `avatarUrl` are not fields on `NexiumSquad` (the correct fields are `slug` and `logo`).
   - `GET /api/discovery/invites` — squad select updated: `urlId` → `slug`, `avatarUrl` → `logo`.
   - `GET /api/discovery/invites/[token]/accept` — same correction.
   - `SquadIncomingInvite` type in `dashboard/discovery/client.tsx` updated to match.
 - **Squad Member Invite Flow** — Various issues in the invite accept/decline redirect flow corrected.
 - **Build Errors and GitHub Links** — Miscellaneous build failures and broken GitHub repository links resolved.
 
-
+## [2.3.0] - 2026-04-09
 
 ### Added
 - **Discovery Dashboard Redesign** — Full sidebar-controlled layout replacing the previous flat tab strip.
