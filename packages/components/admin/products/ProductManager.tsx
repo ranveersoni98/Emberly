@@ -21,6 +21,7 @@ import { Skeleton } from '@/packages/components/ui/skeleton'
 import { Switch } from '@/packages/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/packages/components/ui/tabs'
 import { useToast } from '@/packages/hooks/use-toast'
+import { ToastAction } from '@/packages/components/ui/toast'
 
 const SEED_SCRIPT_URL = 'https://github.com/EmberlyOSS/Emberly/blob/dev/scripts/seed-plans.ts'
 const PAGE_SIZE = 10
@@ -97,18 +98,31 @@ export default function AdminProductManager() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this product? This cannot be undone.')) return
-    setToggling(`${id}:delete`)
-    try {
-      const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Delete failed')
-      setProducts((prev) => prev.filter((p) => p.id !== id))
-      toast({ title: 'Product deleted' })
-    } catch (err: any) {
-      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' })
-    } finally {
-      setToggling(null)
-    }
+    toast({
+      title: 'Delete this product?',
+      description: 'This cannot be undone.',
+      variant: 'destructive',
+      action: (
+        <ToastAction
+          altText="Confirm delete"
+          onClick={async () => {
+            setToggling(`${id}:delete`)
+            try {
+              const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' })
+              if (!res.ok) throw new Error('Delete failed')
+              setProducts((prev) => prev.filter((p) => p.id !== id))
+              toast({ title: 'Product deleted' })
+            } catch (err: any) {
+              toast({ title: 'Delete failed', description: err.message, variant: 'destructive' })
+            } finally {
+              setToggling(null)
+            }
+          }}
+        >
+          Delete
+        </ToastAction>
+      ),
+    })
   }
 
   const sorted = useMemo(

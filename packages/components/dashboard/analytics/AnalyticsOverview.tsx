@@ -231,7 +231,7 @@ export default function AnalyticsOverview() {
     const basic = data.basic || {}
     const uploadsPerDay = data.uploadsPerDay || []
     const storageBreakdown = storageData?.breakdown || []
-    const storageTotalBytes = storageData?.totalBytes ?? basic.storageUsed ?? 0
+    const storageTotalMB = storageData?.totalMB ?? basic.storageUsed ?? 0
     const quotaInfo = data.quotaInfo
     const planInfo = data.planInfo
 
@@ -239,7 +239,7 @@ export default function AnalyticsOverview() {
     const storageDaily = storageData?.daily || []
     const combinedDailyData = uploadsPerDay.map((d: any) => {
         const storageDay = storageDaily.find((s: any) => s.date === d.date)
-        return { ...d, mb: Number((storageDay?.bytes ?? 0).toFixed(2)) }
+        return { ...d, mb: Number((storageDay?.mb ?? 0).toFixed(2)) }
     })
 
     return (
@@ -276,7 +276,7 @@ export default function AnalyticsOverview() {
                     icon={File}
                     label="Total Files"
                     value={formatNumber(basic.totalFiles ?? 0)}
-                    subtitle={`${formatBytes(storageTotalBytes)} used`}
+                    subtitle={`${formatBytes(storageTotalMB)} used`}
                     color="primary"
                 />
                 <StatCard
@@ -459,7 +459,7 @@ export default function AnalyticsOverview() {
                             </div>
                         </div>
                         <div className="text-center mb-4">
-                            <p className="text-3xl sm:text-4xl font-bold">{formatBytes(storageTotalBytes)}</p>
+                            <p className="text-3xl sm:text-4xl font-bold">{formatBytes(storageTotalMB)}</p>
                             <p className="text-xs text-muted-foreground">Total storage used</p>
                         </div>
                         <div className="space-y-2 max-h-[140px] overflow-y-auto scrollbar-none">
@@ -474,7 +474,7 @@ export default function AnalyticsOverview() {
                                             <span className="truncate text-xs">{item.mimeType}</span>
                                         </div>
                                         <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
-                                            {formatBytes(item.bytes)}
+                                            {formatBytes(item.mb)}
                                         </span>
                                     </div>
                                 ))

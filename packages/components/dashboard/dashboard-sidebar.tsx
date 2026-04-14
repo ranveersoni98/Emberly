@@ -14,6 +14,7 @@ import {
   Database,
   FolderOpen,
   Globe,
+  KeyRound,
   LayoutDashboard,
   LinkIcon,
   Sparkles,
@@ -34,6 +35,7 @@ const dashboardRoutes = [
   { href: '/dashboard/domains', label: 'Domains', icon: Globe },
   { href: '/dashboard/analytics', label: 'Analytics', icon: ChartBar },
   { href: '/dashboard/bucket', label: 'Buckets', icon: Database },
+  { href: '/dashboard/verification-codes', label: 'Verification Codes', icon: KeyRound },
 ]
 
 const discoveryChildren = [

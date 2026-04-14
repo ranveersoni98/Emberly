@@ -135,13 +135,10 @@ export default async function BucketPage() {
           <CredentialRow label="Region" value={bucket.s3Region} />
           <CredentialRow label="Access Key ID" value={maskedKeyId} />
           <CredentialRow label="Secret Access Key" value="Delivered by email on assignment — contact support if needed" mono={false} />
-          {bucket.s3Endpoint && (
-            <CredentialRow label="Endpoint URL" value={bucket.s3Endpoint} />
-          )}
           {bucket.s3ForcePathStyle !== undefined && (
             <CredentialRow label="Path-style URLs" value={bucket.s3ForcePathStyle ? 'Enabled' : 'Disabled'} mono={false} />
           )}
-          <CredentialRow label="Provider" value={bucket.provider} mono={false} />
+          <CredentialRow label="Provider" value="Emberly Object Storage" mono={false} />
         </div>
       </div>
 

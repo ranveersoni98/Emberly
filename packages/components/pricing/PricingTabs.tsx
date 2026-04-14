@@ -8,7 +8,7 @@ import AddOnsSection from '@/packages/components/pricing/AddOnsSection'
 import { DiscountsSection } from '@/packages/components/pricing/DiscountsSection'
 import FaqSection from '@/packages/components/pricing/FaqSection'
 import PlanSection from '@/packages/components/pricing/PlanSection'
-import S3Section from '@/packages/components/pricing/S3Section'
+import S3Section, { type StorageTier } from '@/packages/components/pricing/S3Section'
 import { Button } from '@/packages/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/packages/components/ui/tabs'
 import { ScrollIndicator } from '@/packages/components/ui/scroll-indicator'
@@ -54,6 +54,7 @@ type Props = {
     addOns: AddOn[]
     discoveryPlans: Plan[]
     discoveryActivePlanKey: PlanKey
+    storageTiers: StorageTier[]
 }
 
 const tabSlugs: Record<string, string> = {
@@ -72,8 +73,7 @@ const slugToTab = Object.entries(tabSlugs).reduce<Record<string, string>>((acc, 
     return acc
 }, { 'add-ons': 'user-addons' } as Record<string, string>) // backwards compat for old #add-ons hash
 
-export default function PricingTabs({ plans, activePlanKey, addOns, discoveryPlans, discoveryActivePlanKey }: Props) {
-    const bucketPriceId = addOns.find((a) => a.key === 'storage-bucket')?.priceId ?? null
+export default function PricingTabs({ plans, activePlanKey, addOns, discoveryPlans, discoveryActivePlanKey, storageTiers }: Props) {
     const [tabValue, setTabValue] = useState<string>('plans')
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
@@ -276,7 +276,7 @@ export default function PricingTabs({ plans, activePlanKey, addOns, discoveryPla
             </TabsContent>
 
             <TabsContent value="s3">
-                <S3Section priceId={bucketPriceId} />
+                <S3Section tiers={storageTiers} />
             </TabsContent>
 
             <TabsContent value="user-addons">

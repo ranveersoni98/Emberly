@@ -20,6 +20,17 @@ type Props = {
     scope: 'user' | 'squad'
 }
 
+// Add-on keys that are handled by their own dedicated tab/section and must
+// never appear in this generic add-ons list, even as an ungrouped fallback.
+const EXCLUDED_ADDON_KEYS = new Set([
+    'storage-bucket',
+    'storage-bucket-archival',
+    'storage-bucket-standard',
+    'storage-bucket-premium',
+    'storage-bucket-performance',
+    'storage-bucket-accelerated',
+])
+
 // Maps slug → { unitLabel, category, isSquad, isSubscription }
 const ADDON_META: Record<string, { unitLabel: string; category: string; isSquad: boolean; isSubscription?: boolean }> = {
     'extra-storage-1gb':       { unitLabel: 'GB', category: 'storage', isSquad: false },
@@ -67,7 +78,7 @@ export default function AddOnsSection({ addOns, scope }: Props) {
 
         for (const addon of addOns) {
             const meta = ADDON_META[addon.key]
-            if (!meta) { other.push(addon); continue }
+            if (!meta) { if (!EXCLUDED_ADDON_KEYS.has(addon.key)) other.push(addon); continue }
             if (meta.isSquad === isSquadScope) {
                 scoped.push([meta.category, addon])
             }

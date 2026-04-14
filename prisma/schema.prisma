@@ -129,6 +129,7 @@ model User {
   urlsFlagged            ShortenedUrl[]      @relation("UrlFlaggedBy")
   applications           Application[]
   applicationReplies     ApplicationReply[]
+  apiKeys                UserApiKey[]
 
   @@index([role])
   @@index([createdAt])
@@ -754,6 +755,22 @@ model NexiumSquadSubscription {
   @@index([status, currentPeriodEnd])
 }
 
+// Named API keys for user programmatic access (e.g. ShareX, CI/CD, integrations)
+model UserApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String // Human label, e.g. "ShareX Upload Key"
+  keyHash    String    @unique // SHA-256 hash — full key shown once on creation
+  prefix     String // First 12 chars for display, e.g. "ebk_abc12345"
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([keyHash])
+}
+
 // Named API keys for squad programmatic access (e.g. CI/CD, integrations)
 model NexiumSquadApiKey {
   id         String    @id @default(cuid())
@@ -905,26 +922,61 @@ model ApplicationReply {
   @@index([userId])
 }
 
+// A Vultr Object Storage *instance* (regional pool).
+// Admins provision one per region via Admin → Storage → Vultr.
+// Each paying user gets their own bucket created inside the appropriate instance.
+// This amortises the fixed Vultr instance cost across all users in that region.
+model VultrObjectStorage {
+  id          String   @id @default(cuid())
+  vultrId     String   @unique // Vultr resource UUID
+  label       String
+  region      String   // Vultr region code, e.g. 'ewr', 'ams'
+  clusterId   Int
+  s3Hostname  String   // e.g. 'ewr1.vultrobjects.com'
+  s3AccessKey String
+  s3SecretKey String
+  tier          String   @default("standard")
+  status        String   @default("active") // 'pending' | 'active'
+  cfHostname    String?  // e.g. 'storage-ewr.embrly.ca' (DNS-only CNAME via Cloudflare)
+  cfDnsRecordId String?  // Cloudflare DNS record ID, used for cleanup on deletion
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  storageBuckets StorageBucket[]
+
+  @@index([region])
+  @@index([status])
+}
+
 // Named, reusable S3 (or local) storage configuration blocks.
 // Admins create these in Settings → Storage and can assign them to users or squads
 // so that their uploads are routed to a specific bucket.
 model StorageBucket {
-  id               String   @id @default(cuid())
-  name             String
-  provider         String   @default("s3") // 's3' | 'local'
-  s3Bucket         String   @default("")
-  s3Region         String   @default("")
-  s3AccessKeyId    String   @default("")
-  s3SecretKey      String   @default("")
-  s3Endpoint       String?
-  s3ForcePathStyle Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  name                 String
+  provider             String   @default("s3") // 's3' | 'local'
+  s3Bucket             String   @default("")
+  s3Region             String   @default("")
+  s3AccessKeyId        String   @default("")
+  s3SecretKey          String   @default("")
+  s3Endpoint           String?
+  s3ForcePathStyle     Boolean  @default(false)
+  // Vultr-backed buckets: tracks which pooled instance this bucket lives in
+  // and the Stripe subscription that triggered provisioning.
+  vultrObjectStorageId String?
+  vultrBucketName      String?  // The actual bucket name within the Vultr instance
+  stripeSubscriptionId String?  // Subscription that provisioned this bucket
+  provisionStatus      String   @default("active") // 'provisioning' | 'active' | 'deprovisioning'
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  assignedUsers  User[]        @relation("UserStorageBucket")
-  assignedSquads NexiumSquad[] @relation("SquadStorageBucket")
+  vultrObjectStorage VultrObjectStorage? @relation(fields: [vultrObjectStorageId], references: [id], onDelete: SetNull)
+  assignedUsers      User[]              @relation("UserStorageBucket")
+  assignedSquads     NexiumSquad[]       @relation("SquadStorageBucket")
 
   @@index([provider])
+  @@index([vultrObjectStorageId])
+  @@index([stripeSubscriptionId])
 }
 
 enum ContentReportType {

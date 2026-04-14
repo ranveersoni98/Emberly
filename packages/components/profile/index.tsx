@@ -25,6 +25,7 @@ import {
   Link as LinkIcon,
   ClipboardList,
   Settings,
+  KeyRound,
 } from 'lucide-react'
 
 import { ProfileAccount } from './account'
@@ -36,6 +37,7 @@ import { ProfileSecurity } from './security'
 import ProfileDataExplorer from './data-explorer'
 import { ProfileStorage } from './storage'
 import { ProfileTools } from './tools'
+import { ApiKeysPanel } from './api-keys-panel'
 import { ProfileTestimonials } from './testimonials'
 import ProfileAppearance from './appearance'
 import { LinkedAccounts } from './accounts/linked-accounts'
@@ -53,6 +55,7 @@ const profileSections = [
     { value: 'security', label: 'Security', icon: Shield }
   ]},
   { group: 'Content', items: [
+    { value: 'api', label: 'API', icon: KeyRound },
     { value: 'uploads', label: 'Uploads', icon: Upload },
     { value: 'applications', label: 'Applications', icon: ClipboardList },
     { value: 'appearance', label: 'Appearance', icon: Palette },
@@ -357,6 +360,20 @@ export function ProfileClient({
           </GlassCardContent>
         </GlassCard>
         </>
+      )}
+
+      {selectedTab === 'api' && (
+        <GlassCard>
+          <GlassCardHeader>
+            <GlassCardTitle>API Keys</GlassCardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage your API keys and upload token for external integrations
+            </p>
+          </GlassCardHeader>
+          <GlassCardContent>
+            <ApiKeysPanel />
+          </GlassCardContent>
+        </GlassCard>
       )}
 
       {selectedTab === 'security' && (

@@ -61,7 +61,7 @@ export function DashboardShell({ children, header }: DashboardShellProps) {
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
                 }`}
               >
-                <item.icon className="h-4 w-4 shrink-0" />
+                <item.icon className="w-4 h-4 shrink-0" />
                 {item.label}
               </Link>
             )

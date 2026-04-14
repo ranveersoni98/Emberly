@@ -111,6 +111,51 @@ export default async function PricingPage() {
       || 'nexium-free')
     : 'nexium-free'
 
+  // Only expose regions where an admin has provisioned an active Vultr pool.
+  // This prevents selling a bucket in a region we can't actually deliver.
+  const activeVultrInstances = await prisma.vultrObjectStorage.findMany({
+    where: { status: 'active' },
+    select: { region: true, s3Hostname: true, tier: true },
+    orderBy: { region: 'asc' },
+  })
+
+  // Build per-tier region availability. Vultr's `tier` field stores the sales_name
+  // (e.g. "Standard", "Archival"). Match case-insensitively against our slug keywords.
+  const tierKeywords = ['archival', 'standard', 'premium', 'performance', 'accelerated'] as const
+  const tierRegions: Record<string, string[]> = {}
+  const hasTierInfo = activeVultrInstances.some((v) => v.tier && v.tier !== 'standard')
+
+  for (const kw of tierKeywords) {
+    const slug = `storage-bucket-${kw}`
+    if (hasTierInfo) {
+      tierRegions[slug] = activeVultrInstances
+        .filter((v) => v.tier?.toLowerCase().includes(kw))
+        .map((v) => v.region)
+    } else {
+      // Legacy: all instances provisioned before tier tracking — offer all regions for all tiers
+      tierRegions[slug] = activeVultrInstances.map((v) => v.region)
+    }
+  }
+
+  // Build storageTiers array from the 5 tier addon products
+  const storageTierSlugs = tierKeywords.map((kw) => `storage-bucket-${kw}`)
+  const storageTierProducts = activeProducts.filter((p) => storageTierSlugs.includes(p.slug ?? ''))
+
+  const storageTiers = storageTierSlugs
+    .map((slug) => {
+      const product = storageTierProducts.find((p) => p.slug === slug)
+      if (!product) return null
+      const pricing = getAddOnPricing(product)
+      return {
+        slug,
+        name: product.name,
+        priceId: pricing.priceId || '',
+        priceCents: product.defaultPriceCents ?? 0,
+        availableRegions: tierRegions[slug] ?? [],
+      }
+    })
+    .filter(Boolean) as import('@/packages/components/pricing/S3Section').StorageTier[]
+
   return (
     <HomeShell>
       <div className="container space-y-8">
@@ -122,6 +167,7 @@ export default async function PricingPage() {
           addOns={addOns}
           discoveryPlans={discoveryPlans}
           discoveryActivePlanKey={discoveryActivePlanKey}
+          storageTiers={storageTiers}
         />
 
         <CustomPricingCTA />

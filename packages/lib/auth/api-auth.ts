@@ -192,6 +192,40 @@ export async function getAuthenticatedUser(
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.substring(7)
 
+    // ── User API key (ebk_…) ─────────────────────────────────────────────
+    if (token.startsWith('ebk_')) {
+      const hash = createHash('sha256').update(token).digest('hex')
+      const keyRecord = await prisma.userApiKey.findUnique({
+        where: { keyHash: hash },
+        select: {
+          id: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              storageUsed: true,
+              storageQuotaMB: true,
+              urlId: true,
+              role: true,
+              randomizeFileUrls: true,
+              preferredUploadDomain: true,
+            },
+          },
+        },
+      })
+      if (keyRecord) {
+        // Non-blocking last-used update
+        void prisma.userApiKey.update({
+          where: { id: keyRecord.id },
+          data: { lastUsedAt: new Date() },
+        })
+        return keyRecord.user
+      }
+      // ebk_ prefix but not found — don't fall through to uploadToken lookup
+      return null
+    }
+
     // Try cache first for token lookups
     const cachedUserId = await sessionCache.getUserByToken(token)
     if (cachedUserId) {
@@ -265,30 +299,55 @@ export async function requireAuth(req: Request) {
   return { user, response: null }
 }
 
-export async function requireAdmin() {
-  const session = await getServerSession(authOptions)
-
-  if (!session?.user || !hasPermission(session.user.role as any, Permission.ACCESS_ADMIN_PANEL)) {
-    return {
-      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-      user: null,
-    }
-  }
-
-  return { user: session.user, response: null }
+const SYSTEM_KEY_USER = {
+  id: '__system__',
+  email: 'system@emberly.internal',
+  name: 'System API Key',
+  role: 'SUPERADMIN' as const,
 }
 
-export async function requireSuperAdmin() {
+/**
+ * Authenticate a system API key (esk_…) from a Bearer token.
+ * Returns a synthetic SUPERADMIN user object on success, null otherwise.
+ */
+async function getSystemKeyUser(req?: Request) {
+  if (!req) return null
+  const valid = await isSystemKeyAuth(req)
+  return valid ? SYSTEM_KEY_USER : null
+}
+
+export async function requireAdmin(req?: Request) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user || !hasPermission(session.user.role as any, Permission.PERFORM_SUPERADMIN_ACTIONS)) {
-    return {
-      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-      user: null,
-    }
+  if (session?.user && hasPermission(session.user.role as any, Permission.ACCESS_ADMIN_PANEL)) {
+    return { user: session.user, response: null }
   }
 
-  return { user: session.user, response: null }
+  // Fall back to system API key
+  const systemUser = await getSystemKeyUser(req)
+  if (systemUser) return { user: systemUser, response: null }
+
+  return {
+    response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    user: null,
+  }
+}
+
+export async function requireSuperAdmin(req?: Request) {
+  const session = await getServerSession(authOptions)
+
+  if (session?.user && hasPermission(session.user.role as any, Permission.PERFORM_SUPERADMIN_ACTIONS)) {
+    return { user: session.user, response: null }
+  }
+
+  // Fall back to system API key
+  const systemUser = await getSystemKeyUser(req)
+  if (systemUser) return { user: systemUser, response: null }
+
+  return {
+    response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    user: null,
+  }
 }
 
 /**
@@ -299,27 +358,31 @@ export async function requireSuperAdmin() {
  *   const { user, response } = await requireRole('ADMIN')
  *   if (response) return response
  */
-export async function requireRole(minRole: 'USER' | 'ADMIN' | 'SUPERADMIN') {
+export async function requireRole(minRole: 'USER' | 'ADMIN' | 'SUPERADMIN', req?: Request) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user) {
-    return {
-      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-      user: null,
+  if (session?.user) {
+    const userRole = session.user.role as 'USER' | 'ADMIN' | 'SUPERADMIN'
+    const roleHierarchy = { USER: 0, ADMIN: 10, SUPERADMIN: 100 }
+
+    if (roleHierarchy[userRole] >= roleHierarchy[minRole]) {
+      return { user: session.user, response: null }
     }
-  }
 
-  const userRole = session.user.role as 'USER' | 'ADMIN' | 'SUPERADMIN'
-  const roleHierarchy = { USER: 0, ADMIN: 10, SUPERADMIN: 100 }
-
-  if (roleHierarchy[userRole] < roleHierarchy[minRole]) {
     return {
       response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
       user: null,
     }
   }
 
-  return { user: session.user, response: null }
+  // Fall back to system API key (SUPERADMIN — satisfies any role)
+  const systemUser = await getSystemKeyUser(req)
+  if (systemUser) return { user: systemUser, response: null }
+
+  return {
+    response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    user: null,
+  }
 }
 
 /**
@@ -330,17 +393,21 @@ export async function requireRole(minRole: 'USER' | 'ADMIN' | 'SUPERADMIN') {
  *   const { user, response } = await requirePermission(Permission.DELETE_USERS)
  *   if (response) return response
  */
-export async function requirePermission(permission: Permission) {
+export async function requirePermission(permission: Permission, req?: Request) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user || !hasPermission(session.user.role as any, permission)) {
-    return {
-      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
-      user: null,
-    }
+  if (session?.user && hasPermission(session.user.role as any, permission)) {
+    return { user: session.user, response: null }
   }
 
-  return { user: session.user, response: null }
+  // System API key has all permissions
+  const systemUser = await getSystemKeyUser(req)
+  if (systemUser) return { user: systemUser, response: null }
+
+  return {
+    response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+    user: null,
+  }
 }
 
 /**

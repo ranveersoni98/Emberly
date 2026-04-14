@@ -15,6 +15,7 @@ import {
     TableRow,
 } from '@/packages/components/ui/table'
 import { useToast } from '@/packages/hooks/use-toast'
+import { ToastAction } from '@/packages/components/ui/toast'
 
 export type LegalRecord = {
     id: string
@@ -107,25 +108,38 @@ export function LegalList({ onEdit }: { onEdit?: (id: string) => void }) {
     }, [])
 
     async function handleDelete(id: string) {
-        if (!confirm('Delete this legal page?')) return
-        try {
-            const res = await fetch(`/api/legal/${id}`, {
-                method: 'DELETE',
-                credentials: 'include',
-            })
-            if (!res.ok) throw new Error('Delete failed')
-            toast({
-                title: 'Legal page deleted',
-                description: 'The legal page has been deleted successfully.',
-            })
-            await load()
-        } catch (e) {
-            toast({
-                title: 'Error',
-                description: String(e),
-                variant: 'destructive',
-            })
-        }
+        toast({
+            title: 'Delete this legal page?',
+            description: 'This cannot be undone.',
+            variant: 'destructive',
+            action: (
+                <ToastAction
+                    altText="Confirm delete"
+                    onClick={async () => {
+                        try {
+                            const res = await fetch(`/api/legal/${id}`, {
+                                method: 'DELETE',
+                                credentials: 'include',
+                            })
+                            if (!res.ok) throw new Error('Delete failed')
+                            toast({
+                                title: 'Legal page deleted',
+                                description: 'The legal page has been deleted successfully.',
+                            })
+                            await load()
+                        } catch (e) {
+                            toast({
+                                title: 'Error',
+                                description: String(e),
+                                variant: 'destructive',
+                            })
+                        }
+                    }}
+                >
+                    Delete
+                </ToastAction>
+            ),
+        })
     }
 
     if (loading) return <LegalTableSkeleton />

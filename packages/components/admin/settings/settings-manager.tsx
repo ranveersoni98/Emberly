@@ -78,7 +78,9 @@ import { cn } from '@/lib/utils'
 import type { EmberlyConfig } from '@/lib/config'
 
 import { StorageBucketManager } from '@/packages/components/admin/settings/storage-bucket-manager'
+import { VultrInstanceManager } from '@/packages/components/admin/settings/vultr-instance-manager'
 import { useToast } from '@/hooks/use-toast'
+import { ToastAction } from '@/components/ui/toast'
 
 // Reusable GlassCard component for consistent styling
 function GlassCard({ 
@@ -295,8 +297,7 @@ function SystemApiKeySection() {
 
 	useEffect(() => { fetchMeta() }, [fetchMeta])
 
-	const handleGenerate = async () => {
-		if (exists && !confirm('This will revoke the current key and generate a new one. Continue?')) return
+	const executeGenerate = async () => {
 		setGenerating(true)
 		setNewKey(null)
 		try {
@@ -316,22 +317,52 @@ function SystemApiKeySection() {
 		}
 	}
 
-	const handleRevoke = async () => {
-		if (!confirm('Revoke the system API key? Any integrations using it will stop working.')) return
-		setRevoking(true)
-		try {
-			const res = await fetch('/api/admin/system-key', { method: 'DELETE' })
-			if (!res.ok) throw new Error('Failed to revoke')
-			setExists(false)
-			setPrefix(null)
-			setCreatedAt(null)
-			setNewKey(null)
-			toast({ title: 'Key revoked' })
-		} catch {
-			toast({ title: 'Error', description: 'Failed to revoke key', variant: 'destructive' })
-		} finally {
-			setRevoking(false)
+	const handleGenerate = async () => {
+		if (!exists) {
+			await executeGenerate()
+			return
 		}
+		toast({
+			title: 'Regenerate API key?',
+			description: 'This will revoke the current key. Any integrations using it will stop working.',
+			variant: 'destructive',
+			action: (
+				<ToastAction altText="Confirm regenerate" onClick={executeGenerate}>
+					Regenerate
+				</ToastAction>
+			),
+		})
+	}
+
+	const handleRevoke = () => {
+		toast({
+			title: 'Revoke system API key?',
+			description: 'Any integrations using it will stop working.',
+			variant: 'destructive',
+			action: (
+				<ToastAction
+					altText="Confirm revoke"
+					onClick={async () => {
+						setRevoking(true)
+						try {
+							const res = await fetch('/api/admin/system-key', { method: 'DELETE' })
+							if (!res.ok) throw new Error('Failed to revoke')
+							setExists(false)
+							setPrefix(null)
+							setCreatedAt(null)
+							setNewKey(null)
+							toast({ title: 'Key revoked' })
+						} catch {
+							toast({ title: 'Error', description: 'Failed to revoke key', variant: 'destructive' })
+						} finally {
+							setRevoking(false)
+						}
+					}}
+				>
+					Revoke
+				</ToastAction>
+			),
+		})
 	}
 
 	const copyKey = () => {
@@ -1436,6 +1467,15 @@ export function SettingsManager() {
 					</div>
 				</SettingsSection>
 
+				{/* Vultr Object Storage Pools */}
+				<SettingsSection
+					icon={Cloud}
+					title="Vultr Object Storage"
+					description="Regional pooled instances. Active instances enable that region on the pricing page so users can purchase storage."
+				>
+					<VultrInstanceManager />
+				</SettingsSection>
+
 				{/* Additional Storage Buckets */}
 				<SettingsSection
 					icon={Database}
@@ -2231,6 +2271,56 @@ export function SettingsManager() {
 								})}
 							>
 								{intTestStates['kener']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+								Test Connection
+							</Button>
+						</div>
+					</SettingsSection>
+					{/* Vultr */}
+					<SettingsSection
+						icon={Server}
+						title="Vultr"
+						description="Object Storage API for automated bucket provisioning. Overrides the VULTR_API_KEY env var."
+						badge={
+							isFieldChanged('integrations', ['vultr']) && (
+								<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+									Modified
+								</span>
+							)
+						}
+					>
+						<SettingRow label="API Key" description="Vultr API key from the Vultr customer portal">
+							<Input
+								type="password"
+								placeholder="API key"
+								className="w-80 font-mono text-sm"
+								value={(workingConfig?.settings.integrations as any)?.vultr?.apiKey ?? ''}
+								onChange={(e) => handleSettingChange('integrations', {
+									vultr: {
+										...(workingConfig?.settings.integrations as any)?.vultr,
+										apiKey: e.target.value,
+									},
+								} as any)}
+							/>
+						</SettingRow>
+						<div className="pt-3 border-t border-border/30 flex items-center justify-between gap-3">
+							<div>
+								{intTestStates['vultr'] && !intTestStates['vultr'].loading && (
+									<span className={`text-xs flex items-center gap-1.5 ${intTestStates['vultr'].ok ? 'text-green-500' : 'text-destructive'}`}>
+										{intTestStates['vultr'].ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+										{intTestStates['vultr'].message}
+									</span>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 shrink-0"
+								disabled={intTestStates['vultr']?.loading}
+								onClick={() => handleIntegrationTest('vultr', {
+									apiKey: (workingConfig?.settings.integrations as any)?.vultr?.apiKey ?? '',
+								})}
+							>
+								{intTestStates['vultr']?.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
 								Test Connection
 							</Button>
 						</div>

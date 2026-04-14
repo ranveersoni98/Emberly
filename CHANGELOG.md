@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on "Keep a Changelog" and follows [Semantic Versioning](https://semver.org/).
 
+## [2.4.2] - 2026-04-14
+
+### Added
+- **User API Key Management System** — Users can now create, name, copy, and revoke multiple personal API keys from `/me` → API tab.
+  - New `UserApiKey` Prisma model (`ebk_` prefix, SHA-256 hashed, max 10 keys per user, `lastUsedAt` tracking).
+  - `packages/lib/api-keys/index.ts` — `generateApiKey()`, `listUserApiKeys()`, `createUserApiKey()` (enforces 10-key cap), `revokeUserApiKey()`.
+  - `GET /api/profile/api-keys` — lists keys (prefix and metadata only, never the hash). `POST` — creates a key and returns the full raw value exactly once.
+  - `DELETE /api/profile/api-keys/[keyId]` — revokes a key; ownership enforced via `userId` filter.
+  - `packages/components/profile/api-keys-panel.tsx` — combined panel: legacy upload token (show/hide/refresh) + named key CRUD (create with name, one-time copy flash, revoke per key).
+  - `ebk_` prefix recognized in `getAuthenticatedUser` — SHA-256 hash lookup with non-blocking `lastUsedAt` update; falls through cleanly if prefix matches but no record is found.
+- **Admin System Key Auth Integration** — The existing `esk_` system key can now authenticate any admin or superadmin route.
+  - `requireAdmin()`, `requireSuperAdmin()`, `requireRole()`, and `requirePermission()` all accept an optional `req` parameter; when provided, they fall back to system key auth if no session is present.
+  - Synthetic `SYSTEM_KEY_USER` constant (SUPERADMIN role) returned by new `getSystemKeyUser(req?)` helper, which reuses the existing `isSystemKeyAuth()` check.
+  - All existing callers (no `req` argument) are unaffected.
+- **Partners Carousel** — Marketing partner logos rebuilt from a static grid to an infinite auto-scrolling marquee.
+  - Duplicated partner list drives a seamless CSS loop; pauses on hover.
+  - Edge fade masks (`mask-image` gradient) soften the left/right boundaries.
+  - `animate-marquee` keyframe added to `tailwind.config.ts` (`translateX(-50%)`, 30 s linear infinite).
+
+### Changed
+- **Profile API Tab** — Upload token and API key management moved out of the Uploads tab into a new dedicated **API** tab in `/me`.
+  - `KeyRound` icon; tab inserted between Uploads and Applications in the Content group.
+  - Upload Host domain selector remains in the Uploads tab (upload config, not key management).
+  - `packages/components/profile/tools/upload-host.tsx` extracted as a standalone component and restored to `ProfileTools`.
+
+### Fixed
+- **Storage Usage Inconsistencies** — Several parts of the site were displaying incorrect or near-zero storage values due to unit mismatches across the storage pipeline.
+  - `File.size` and `User.storageUsed` are stored in **MB**; the analytics API was naming those values with `bytes`-suffixed fields, causing consumers to double-convert.
+  - `GET /api/analytics/storage` — response fields renamed: `totalBytes` → `totalMB`, `daily[].bytes` → `daily[].mb`, `breakdown[].bytes` → `breakdown[].mb`.
+  - `StorageMetrics.tsx` — removed manual `/ 1024 / 1024` division; now reads `data.totalMB` and calls `formatFileSize(mb)` directly.
+  - `AnalyticsOverview.tsx` — `storageTotalBytes` → `storageTotalMB` throughout; `storageDay?.bytes` → `storageDay?.mb`; `item.bytes` → `item.mb` in breakdown render.
+  - `POST /api/files` — squad `storageUsed` was being incremented with raw bytes (`uploadedFile.size`) instead of MB; fixed to `bytesToMB(uploadedFile.size)`.
+- **Storage Bucket Appearing in Add-Ons List** — The Storage Bucket product was falling through the `ADDON_META` lookup as an unmatched add-on and rendering in the generic add-ons section despite the code comment saying it was excluded.
+  - Added `EXCLUDED_ADDON_KEYS` set (`'storage-bucket'`) to `AddOnsSection.tsx`; keys in this set are skipped before reaching the ungrouped fallback renderer.
+- **Verification Codes Removed** — The verification codes panel has been fully removed.
+  - Dashboard nav item, page (`/dashboard/verification-codes`), panel component, and API route (`/api/auth/verification-codes`) deleted.
+  - The `verificationCodes` field on the `User` model is preserved — it is still used by the email verification system (`verify-email` and `resend-verification` routes).
+
 ## [2.4.1] - 2026-04-10
 
 ### Added

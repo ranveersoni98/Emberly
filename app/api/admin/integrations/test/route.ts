@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer'
 
 const logger = loggers.config
 
-type IntegrationKey = 'stripe' | 'resend' | 'cloudflare' | 'discord' | 'github' | 'kener' | 'smtp'
+type IntegrationKey = 'stripe' | 'resend' | 'cloudflare' | 'discord' | 'github' | 'kener' | 'smtp' | 'vultr'
 
 interface TestIntegrationBody {
   integration: IntegrationKey
@@ -138,6 +138,23 @@ async function testKener(apiKey: string, baseUrl?: string): Promise<TestResult> 
   }
 }
 
+async function testVultr(apiKey: string): Promise<TestResult> {
+  if (!apiKey) return { ok: false, message: 'API key is not configured' }
+  try {
+    const res = await fetch('https://api.vultr.com/v2/account', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.status === 401 || res.status === 403) return { ok: false, message: 'Invalid API key' }
+    if (!res.ok) return { ok: false, message: `Vultr API error (${res.status})` }
+    const json = await res.json().catch(() => null)
+    const email = json?.account?.email
+    return { ok: true, message: `Connected to Vultr${email ? ` — ${email}` : ''}` }
+  } catch (err) {
+    return { ok: false, message: 'Failed to reach Vultr API', detail: String(err) }
+  }
+}
+
 async function testSmtp(host: string, port: number, secure: boolean, user: string, password: string): Promise<TestResult> {
   if (!host) return { ok: false, message: 'SMTP host is not configured' }
   try {
@@ -194,6 +211,9 @@ export async function POST(req: Request) {
           credentials.user,
           credentials.password,
         )
+        break
+      case 'vultr':
+        result = await testVultr(credentials.apiKey)
         break
       default:
         return apiError('Unknown integration', HTTP_STATUS.BAD_REQUEST)

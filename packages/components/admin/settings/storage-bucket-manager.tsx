@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
+import { ToastAction } from '@/components/ui/toast'
 
 interface StorageBucket {
   id: string
@@ -50,31 +51,47 @@ interface StorageBucket {
   s3SecretKey: string
   s3Endpoint: string | null
   s3ForcePathStyle: boolean
+  vultrObjectStorageId: string | null
+  vultrBucketName: string | null
   createdAt: string
   updatedAt: string
   _count: { assignedUsers: number; assignedSquads: number }
 }
 
+interface VultrInstance {
+  id: string
+  label: string
+  region: string
+  tier: string
+  status: string
+  s3Hostname: string
+  userBucketCount: number
+}
+
 interface BucketForm {
   name: string
-  provider: string
+  provider: string // 's3' | 'local' | 'vultr' (vultr is UI-only; stored as 's3' in DB)
   s3Bucket: string
   s3Region: string
   s3AccessKeyId: string
   s3SecretKey: string
   s3Endpoint: string
   s3ForcePathStyle: boolean
+  vultrObjectStorageId: string
+  vultrBucketName: string
 }
 
 const EMPTY_FORM: BucketForm = {
   name: '',
-  provider: 's3',
+  provider: 'vultr',
   s3Bucket: '',
   s3Region: '',
   s3AccessKeyId: '',
   s3SecretKey: '',
   s3Endpoint: '',
   s3ForcePathStyle: false,
+  vultrObjectStorageId: '',
+  vultrBucketName: '',
 }
 
 interface TestState {
@@ -93,6 +110,8 @@ export function StorageBucketManager() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [testStates, setTestStates] = useState<Record<string, TestState>>({})
+  const [vultrInstances, setVultrInstances] = useState<VultrInstance[]>([])
+  const [vultrLoading, setVultrLoading] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -109,25 +128,44 @@ export function StorageBucketManager() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  const fetchVultrInstances = useCallback(async () => {
+    setVultrLoading(true)
+    try {
+      const res = await fetch('/api/admin/storage/vultr')
+      if (!res.ok) throw new Error('Failed to load Vultr instances')
+      const data = await res.json()
+      setVultrInstances(data.data ?? [])
+    } catch {
+      // Non-fatal — admin can still use manual S3
+    } finally {
+      setVultrLoading(false)
+    }
+  }, [])
+
   const openCreate = () => {
     setEditingId(null)
     setForm(EMPTY_FORM)
     setDialogOpen(true)
+    if (vultrInstances.length === 0) fetchVultrInstances()
   }
 
   const openEdit = (bucket: StorageBucket) => {
     setEditingId(bucket.id)
     setForm({
       name: bucket.name,
-      provider: bucket.provider,
+      // If this bucket is Vultr-backed, show 'vultr' in the provider dropdown
+      provider: bucket.vultrObjectStorageId ? 'vultr' : bucket.provider,
       s3Bucket: bucket.s3Bucket,
       s3Region: bucket.s3Region,
       s3AccessKeyId: '', // never pre-fill secrets
       s3SecretKey: '',
       s3Endpoint: bucket.s3Endpoint ?? '',
       s3ForcePathStyle: bucket.s3ForcePathStyle,
+      vultrObjectStorageId: bucket.vultrObjectStorageId ?? '',
+      vultrBucketName: bucket.vultrBucketName ?? '',
     })
     setDialogOpen(true)
+    if (vultrInstances.length === 0) fetchVultrInstances()
   }
 
   const handleSave = async () => {
@@ -154,19 +192,32 @@ export function StorageBucketManager() {
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete storage bucket "${name}"? Users and squads assigned to it will fall back to the default storage.`)) return
-    setDeleting(id)
-    try {
-      const res = await fetch(`/api/admin/storage/buckets/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete')
-      toast({ title: `Bucket "${name}" deleted` })
-      refresh()
-    } catch {
-      toast({ title: 'Failed to delete bucket', variant: 'destructive' })
-    } finally {
-      setDeleting(null)
-    }
+  const handleDelete = (id: string, name: string) => {
+    toast({
+      title: `Delete "${name}"?`,
+      description: 'Users and squads assigned to it will fall back to the default storage.',
+      variant: 'destructive',
+      action: (
+        <ToastAction
+          altText="Confirm delete"
+          onClick={async () => {
+            setDeleting(id)
+            try {
+              const res = await fetch(`/api/admin/storage/buckets/${id}`, { method: 'DELETE' })
+              if (!res.ok) throw new Error('Failed to delete')
+              toast({ title: `Bucket "${name}" deleted` })
+              refresh()
+            } catch {
+              toast({ title: 'Failed to delete bucket', variant: 'destructive' })
+            } finally {
+              setDeleting(null)
+            }
+          }}
+        >
+          Delete
+        </ToastAction>
+      ),
+    })
   }
 
   const handleTest = async (id: string) => {
@@ -225,7 +276,7 @@ export function StorageBucketManager() {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate">{bucket.name}</p>
                     <Badge variant="secondary" className="text-xs shrink-0">
-                      {bucket.provider === 's3' ? 'S3' : 'Local'}
+                      {bucket.vultrObjectStorageId ? 'Vultr' : bucket.provider === 's3' ? 'S3' : 'Local'}
                     </Badge>
                     {bucket.s3Bucket && (
                       <span className="text-xs text-muted-foreground font-mono truncate hidden sm:block">
@@ -320,9 +371,14 @@ export function StorageBucketManager() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="vultr">
+                    <div className="flex items-center gap-2">
+                      <Cloud className="h-3.5 w-3.5" />Vultr Object Storage
+                    </div>
+                  </SelectItem>
                   <SelectItem value="s3">
                     <div className="flex items-center gap-2">
-                      <Cloud className="h-3.5 w-3.5" />S3
+                      <Cloud className="h-3.5 w-3.5" />S3 (manual)
                     </div>
                   </SelectItem>
                   <SelectItem value="local">
@@ -333,6 +389,59 @@ export function StorageBucketManager() {
                 </SelectContent>
               </Select>
             </div>
+
+            {form.provider === 'vultr' && (
+              <div className="space-y-3 rounded-xl border border-border/40 p-4 bg-muted/20">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Cloud className="h-3.5 w-3.5" />Vultr Instance
+                </p>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Object Storage Instance</Label>
+                  <Select
+                    value={form.vultrObjectStorageId}
+                    onValueChange={(v) => setForm((f) => ({ ...f, vultrObjectStorageId: v }))}
+                    disabled={!!editingId || vultrLoading}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder={vultrLoading ? 'Loading instances…' : 'Select an instance'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vultrInstances.map((inst) => (
+                        <SelectItem key={inst.id} value={inst.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{inst.label}</span>
+                            <span className="text-xs text-muted-foreground">{inst.region} · {inst.tier}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                      {vultrInstances.length === 0 && !vultrLoading && (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">No Vultr instances provisioned yet</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {editingId && (
+                    <p className="text-xs text-muted-foreground">Instance cannot be changed after creation.</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Bucket Name (within the instance)</Label>
+                  <Input
+                    placeholder="e.g. user-uploads"
+                    className="h-8 text-sm font-mono"
+                    value={form.vultrBucketName}
+                    onChange={(e) => setForm((f) => ({ ...f, vultrBucketName: e.target.value }))}
+                    disabled={!!editingId}
+                  />
+                  {editingId ? (
+                    <p className="text-xs text-muted-foreground">Bucket name cannot be changed after creation.</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Must match an existing bucket in the selected Vultr instance. Credentials are filled automatically.</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {form.provider === 's3' && (
               <div className="space-y-3 rounded-xl border border-border/40 p-4 bg-muted/20">

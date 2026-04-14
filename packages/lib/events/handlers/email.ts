@@ -545,10 +545,10 @@ async function sendEmail(options: {
             template: BucketCredentialsEmail,
             props: {
                 bucketName: String(variables.bucketName || ''),
-                accessKey: String(variables.accessKey || ''),
-                secretKey: String(variables.secretKey || ''),
-                endpoint: String(variables.endpoint || ''),
-                region: typeof variables.region === 'string' ? variables.region : undefined,
+                s3Bucket: String(variables.s3Bucket || ''),
+                s3Region: String(variables.s3Region || ''),
+                s3AccessKeyId: String(variables.s3AccessKeyId || ''),
+                dashboardUrl: typeof variables.dashboardUrl === 'string' ? variables.dashboardUrl : undefined,
             },
             skipTracking: true,
         })

@@ -75,14 +75,6 @@ export async function GET(
 
     const storageProvider = await getStorageProvider()
 
-    if ('getDownloadUrl' in storageProvider && storageProvider.getDownloadUrl) {
-      const downloadUrl = await storageProvider.getDownloadUrl(
-        file.path,
-        file.name
-      )
-      return Response.redirect(downloadUrl, 302)
-    }
-
     const range = request.headers.get('range')
     const size = await storageProvider.getFileSize(file.path)
 
@@ -184,14 +176,6 @@ export async function POST(
     })
 
     const storageProvider = await getStorageProvider()
-
-    if ('getDownloadUrl' in storageProvider && storageProvider.getDownloadUrl) {
-      const downloadUrl = await storageProvider.getDownloadUrl(
-        file.path,
-        file.name
-      )
-      return Response.redirect(downloadUrl, 302)
-    }
 
     const size = await storageProvider.getFileSize(file.path)
 

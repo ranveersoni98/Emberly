@@ -360,6 +360,25 @@ export type EventTypeMap = {
     context?: RequestContext
   }
 
+  'user.bucket-provisioned': {
+    userId: string
+    email: string
+    region: string
+    bucketName: string
+    s3Hostname: string
+    storageBucketId: string
+    context?: RequestContext
+  }
+
+  'user.bucket-deprovisioned': {
+    userId: string
+    email: string
+    region: string
+    bucketName: string
+    reason?: string
+    context?: RequestContext
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // EMAIL / NOTIFICATION EVENTS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -830,7 +849,7 @@ export const EventCategories = {
   file: ['file.uploaded', 'file.downloaded', 'file.deleted', 'file.visibility-changed', 'file.schedule-expiration', 'file.expired'],
   auth: ['auth.login', 'auth.logout', 'auth.password-changed', 'auth.password-reset-requested', 'auth.password-reset-completed', 'auth.2fa-enabled', 'auth.2fa-disabled', 'auth.2fa-backup-codes-generated', 'auth.2fa-backup-code-used', 'auth.session-revoked'],
   account: ['account.created', 'account.email-changed', 'account.email-verification-requested', 'account.email-verified', 'account.profile-updated', 'account.export-requested', 'account.export-completed', 'account.deletion-requested', 'account.deletion-cancelled', 'account.deleted'],
-  user: ['user.perk-gained', 'user.quota-reached', 'user.storage-assigned'],
+  user: ['user.perk-gained', 'user.quota-reached', 'user.storage-assigned', 'user.bucket-provisioned', 'user.bucket-deprovisioned'],
   email: ['email.send', 'email.sent', 'email.failed', 'email.bounced'],
   billing: ['billing.subscription-created', 'billing.subscription-updated', 'billing.subscription-cancelled', 'billing.payment-succeeded', 'billing.payment-failed', 'billing.refund-issued'],
   security: ['security.suspicious-activity', 'security.rate-limit-exceeded', 'security.api-key-created', 'security.api-key-revoked'],
