@@ -15,6 +15,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/packages/components/ui/dropdown-menu'
+import { useToast } from '@/packages/hooks/use-toast'
+import { ToastAction } from '@/packages/components/ui/toast'
 
 function TestimonialSkeleton() {
     return (
@@ -71,6 +73,7 @@ function TestimonialSkeleton() {
 export function TestimonialList() {
     const [items, setItems] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const { toast } = useToast()
 
     async function load() {
         setLoading(true)
@@ -103,9 +106,22 @@ export function TestimonialList() {
     }
 
     async function remove(id: string) {
-        if (!confirm('Delete testimonial?')) return
-        await fetch(`/api/testimonials/${id}`, { method: 'DELETE' })
-        load()
+        toast({
+            title: 'Delete testimonial?',
+            description: 'This cannot be undone.',
+            variant: 'destructive',
+            action: (
+                <ToastAction
+                    altText="Confirm delete"
+                    onClick={async () => {
+                        await fetch(`/api/testimonials/${id}`, { method: 'DELETE' })
+                        load()
+                    }}
+                >
+                    Delete
+                </ToastAction>
+            ),
+        })
     }
 
     if (loading) return <TestimonialSkeleton />

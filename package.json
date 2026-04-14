@@ -1,6 +1,6 @@
 {
   "name": "@emberly/website",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "license": "AGPL-3.0-only",
   "author": "CodeMeAPixel",
   "homepage": "https://github.com/EmberlyOSS/Emberly",
@@ -83,6 +83,7 @@
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "country-flag-icons": "^1.6.16",
     "date-fns": "^2.30.0",
     "devicons": "^1.8.0",
     "dompurify": "^3.2.6",

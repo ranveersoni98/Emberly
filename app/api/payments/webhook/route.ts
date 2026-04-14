@@ -7,6 +7,10 @@ import { loggers } from '@/packages/lib/logger'
 import { upsertSubscriptionRecord } from '@/packages/lib/stripe/billing'
 import { getStripeClient, isStripeConfigured } from '@/packages/lib/stripe/client'
 import { getIntegrations } from '@/packages/lib/config'
+import {
+    createObjectStorageBucket,
+    deleteObjectStorageBucket,
+} from '@/packages/lib/vultr'
 
 const logger = loggers.api
 
@@ -86,6 +90,20 @@ export async function POST(req: Request) {
                             amount: amountCents / 100,
                             currency: stripeSub.currency || 'usd',
                         })
+
+                        // Auto-provision Vultr Object Storage bucket for storage-bucket subscriptions
+                        const sessionMetadata = session.metadata || {}
+                        if (sessionMetadata.type === 'storage-bucket' && sessionMetadata.location) {
+                            await provisionUserStorageBucket(
+                                user,
+                                sessionMetadata.location as string,
+                                subId,
+                                sessionMetadata.tier as string | undefined,
+                            ).catch((err) => {
+                                // Non-fatal: log and let the admin handle it manually
+                                logger.error(`[Webhook] Failed to provision storage bucket for user ${user.id}`, err)
+                            })
+                        }
 
                         logger.info(`[Webhook] Subscription created for user ${user.id}: ${subId}`)
                     }
@@ -325,6 +343,11 @@ export async function POST(req: Request) {
                         reason: 'Subscription deleted in Stripe',
                         effectiveAt: new Date(),
                     })
+
+                    // Deprovision Vultr bucket if this was a storage-bucket subscription
+                    await deprovisionUserStorageBucket(stripeSubId, existing.user).catch((err) => {
+                        logger.error(`[Webhook] Failed to deprovision storage bucket for sub ${stripeSubId}`, err)
+                    })
                 }
 
                 break
@@ -378,4 +401,140 @@ export async function POST(req: Request) {
         logger.error('[Webhook] Verification or processing error', err instanceof Error ? err : new Error(String(err)))
         return NextResponse.json({ error: 'webhook verification failed' }, { status: 400 })
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Storage bucket provisioning helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Provisions a Vultr Object Storage bucket for a user after they subscribe.
+ * Finds the admin-provisioned VultrObjectStorage pool for the chosen region,
+ * creates a per-user bucket inside it, saves a StorageBucket record, and
+ * assigns it to the user.
+ */
+async function provisionUserStorageBucket(
+    user: { id: string; email: string | null; name: string | null },
+    region: string,
+    stripeSubscriptionId: string,
+    tierSlug?: string,
+): Promise<void> {
+    // Find an active Vultr instance pool for this region, preferring one whose
+    // tier matches the product the user purchased (e.g. 'standard', 'archival').
+    // Falls back to any active instance in the region for backwards compatibility.
+    const tierWord = tierSlug ?? null  // e.g. 'standard', 'archival', or null
+
+    let vultrInstance = tierWord
+        ? await prisma.vultrObjectStorage.findFirst({
+              where: { region, status: 'active', tier: { contains: tierWord, mode: 'insensitive' } },
+              orderBy: { createdAt: 'asc' },
+          })
+        : null
+
+    if (!vultrInstance) {
+        vultrInstance = await prisma.vultrObjectStorage.findFirst({
+            where: { region, status: 'active' },
+            orderBy: { createdAt: 'asc' },
+        })
+    }
+
+    if (!vultrInstance) {
+        logger.error(`[Provision] No active Vultr Object Storage pool for region '${region}'. ` +
+            `Admin must provision one at Admin → Storage → Vultr before users can purchase in this region.`)
+        return
+    }
+
+    // Bucket name: lowercase, DNS-safe, unique per user
+    const bucketName = `emberly-${user.id.slice(0, 20).toLowerCase().replace(/[^a-z0-9]/g, '')}`
+
+    // Create the bucket inside the shared Vultr instance
+    await createObjectStorageBucket(vultrInstance.vultrId, bucketName)
+    logger.info(`[Provision] Created Vultr bucket '${bucketName}' in instance ${vultrInstance.vultrId}`)
+
+    // Persist the StorageBucket record and assign it to the user atomically
+    await prisma.$transaction(async (tx) => {
+        const storageBucket = await tx.storageBucket.create({
+            data: {
+                name: `${user.name || user.email || user.id}'s Bucket (${region.toUpperCase()})`,
+                provider: 's3',
+                s3Bucket: bucketName,
+                s3Region: vultrInstance.region,
+                s3AccessKeyId: vultrInstance.s3AccessKey,
+                s3SecretKey: vultrInstance.s3SecretKey,
+                s3Endpoint: `https://${vultrInstance.s3Hostname}`,
+                s3ForcePathStyle: false,
+                vultrObjectStorageId: vultrInstance.id,
+                vultrBucketName: bucketName,
+                stripeSubscriptionId,
+                provisionStatus: 'active',
+            },
+        })
+
+        await tx.user.update({
+            where: { id: user.id },
+            data: { storageBucketId: storageBucket.id },
+        })
+
+        return storageBucket
+    })
+
+    await events.emit('user.bucket-provisioned', {
+        userId: user.id,
+        email: user.email || '',
+        region,
+        bucketName,
+        s3Hostname: vultrInstance.s3Hostname,
+        storageBucketId: '',  // populated below — emitting for notification only
+    })
+
+    logger.info(`[Provision] Bucket provisioned and assigned to user ${user.id}`)
+}
+
+/**
+ * Deprovisions the Vultr bucket tied to a cancelled Stripe subscription.
+ * Deletes the bucket from Vultr, removes the StorageBucket record and
+ * clears the user assignment.
+ */
+async function deprovisionUserStorageBucket(
+    stripeSubscriptionId: string,
+    user: { id: string; email: string | null },
+): Promise<void> {
+    const storageBucket = await prisma.storageBucket.findFirst({
+        where: { stripeSubscriptionId },
+        include: { vultrObjectStorage: true },
+    })
+
+    if (!storageBucket) return  // Not a Vultr-backed bucket subscription
+
+    const { vultrObjectStorage, vultrBucketName } = storageBucket
+
+    // Delete the bucket from Vultr if we can identify it
+    if (vultrObjectStorage && vultrBucketName) {
+        try {
+            await deleteObjectStorageBucket(vultrObjectStorage.vultrId, vultrBucketName)
+            logger.info(`[Deprovision] Deleted Vultr bucket '${vultrBucketName}' from instance ${vultrObjectStorage.vultrId}`)
+        } catch (err) {
+            logger.error(`[Deprovision] Failed to delete Vultr bucket '${vultrBucketName}'`, err as Error)
+            // Continue — still clean up the DB record
+        }
+    }
+
+    // Clear user assignment and remove StorageBucket record
+    await prisma.$transaction([
+        prisma.user.updateMany({
+            where: { storageBucketId: storageBucket.id },
+            data: { storageBucketId: null },
+        }),
+        prisma.storageBucket.delete({ where: { id: storageBucket.id } }),
+    ])
+
+    await events.emit('user.bucket-deprovisioned', {
+        userId: user.id,
+        email: user.email || '',
+        region: storageBucket.s3Region,
+        bucketName: vultrBucketName ?? '',
+        reason: 'Subscription cancelled',
+    })
+
+    logger.info(`[Deprovision] Bucket deprovisioned for user ${user.id}`)
 }

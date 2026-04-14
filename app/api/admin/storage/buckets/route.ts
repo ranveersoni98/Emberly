@@ -20,6 +20,8 @@ export async function GET(req: Request) {
         s3Region: true,
         s3Endpoint: true,
         s3ForcePathStyle: true,
+        vultrObjectStorageId: true,
+        vultrBucketName: true,
         createdAt: true,
         updatedAt: true,
         // Return masked versions of secrets — never expose raw keys
@@ -50,9 +52,38 @@ export async function POST(req: Request) {
     if (response) return response
 
     const body = await req.json()
-    const { name, provider = 's3', s3Bucket, s3Region, s3AccessKeyId, s3SecretKey, s3Endpoint, s3ForcePathStyle } = body
+    const { name, provider = 's3', s3Bucket, s3Region, s3AccessKeyId, s3SecretKey, s3Endpoint, s3ForcePathStyle, vultrObjectStorageId, vultrBucketName } = body
 
     if (!name?.trim()) return apiError('Bucket name is required', HTTP_STATUS.BAD_REQUEST)
+
+    // For Vultr-backed buckets, populate S3 credentials from the existing VultrObjectStorage record
+    if (provider === 'vultr') {
+      if (!vultrObjectStorageId) return apiError('Vultr instance is required', HTTP_STATUS.BAD_REQUEST)
+      if (!vultrBucketName?.trim()) return apiError('Bucket name within the Vultr instance is required', HTTP_STATUS.BAD_REQUEST)
+
+      const vultr = await prisma.vultrObjectStorage.findUnique({ where: { id: vultrObjectStorageId } })
+      if (!vultr) return apiError('Vultr Object Storage instance not found', HTTP_STATUS.NOT_FOUND)
+
+      const bucket = await prisma.storageBucket.create({
+        data: {
+          name: name.trim(),
+          provider: 's3',
+          s3Bucket: vultrBucketName.trim(),
+          s3Region: vultr.region,
+          s3AccessKeyId: vultr.s3AccessKey,
+          s3SecretKey: vultr.s3SecretKey,
+          s3Endpoint: `https://${vultr.s3Hostname}`,
+          s3ForcePathStyle: false,
+          vultrObjectStorageId: vultr.id,
+          vultrBucketName: vultrBucketName.trim(),
+        },
+      })
+
+      return apiResponse(
+        { ...bucket, s3AccessKeyId: bucket.s3AccessKeyId ? `${bucket.s3AccessKeyId.slice(0, 4)}••••` : '', s3SecretKey: '' },
+        HTTP_STATUS.CREATED
+      )
+    }
 
     const bucket = await prisma.storageBucket.create({
       data: {

@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/packages/components/ui/table'
 import { useToast } from '@/packages/hooks/use-toast'
+import { ToastAction } from '@/packages/components/ui/toast'
 
 type Post = {
   id: string
@@ -105,25 +106,38 @@ export function BlogList({ onEdit }: { onEdit?: (id: string) => void }) {
   }, [])
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this post?')) return
-    try {
-      const res = await fetch(`/api/posts/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('Delete failed')
-      toast({
-        title: 'Post deleted',
-        description: 'The post has been deleted successfully.',
-      })
-      await load()
-    } catch (e) {
-      toast({
-        title: 'Error',
-        description: String(e),
-        variant: 'destructive',
-      })
-    }
+    toast({
+      title: 'Delete this post?',
+      description: 'This cannot be undone.',
+      variant: 'destructive',
+      action: (
+        <ToastAction
+          altText="Confirm delete"
+          onClick={async () => {
+            try {
+              const res = await fetch(`/api/posts/${id}`, {
+                method: 'DELETE',
+                credentials: 'include',
+              })
+              if (!res.ok) throw new Error('Delete failed')
+              toast({
+                title: 'Post deleted',
+                description: 'The post has been deleted successfully.',
+              })
+              await load()
+            } catch (e) {
+              toast({
+                title: 'Error',
+                description: String(e),
+                variant: 'destructive',
+              })
+            }
+          }}
+        >
+          Delete
+        </ToastAction>
+      ),
+    })
   }
 
   if (loading) return <PostTableSkeleton />

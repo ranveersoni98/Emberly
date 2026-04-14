@@ -48,8 +48,6 @@ export async function PUT(req: Request, { params }: Params) {
               s3Bucket: true,
               s3Region: true,
               s3AccessKeyId: true,
-              s3Endpoint: true,
-              s3ForcePathStyle: true,
             },
           }),
         ])
@@ -66,8 +64,6 @@ export async function PUT(req: Request, { params }: Params) {
               s3Bucket: bucket.s3Bucket,
               s3Region: bucket.s3Region,
               s3AccessKeyId: bucket.s3AccessKeyId,
-              s3Endpoint: bucket.s3Endpoint ?? undefined,
-              s3ForcePathStyle: bucket.s3ForcePathStyle,
               dashboardUrl: `${appBaseUrl}/dashboard/bucket`,
             },
           }).catch((err) =>

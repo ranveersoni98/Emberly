@@ -20,6 +20,41 @@ function GlassCard({ children, className = '' }: { children: React.ReactNode; cl
   )
 }
 
+function PartnerCard({ partner }: { partner: Partner }) {
+  return (
+    <div className="group flex flex-col items-center gap-3 p-4 rounded-xl glass-subtle hover:bg-muted/40 transition-all duration-200 w-44 shrink-0">
+      {/* Logo */}
+      <div className="relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        {partner.imageUrl ? (
+          <img
+            src={partner.imageUrl}
+            alt={`${partner.name} logo`}
+            loading="lazy"
+            className="relative w-full h-full object-contain bg-background rounded-lg p-1"
+          />
+        ) : (
+          <div className="relative w-full h-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-primary font-bold text-lg rounded-lg">
+            {partner.name
+              .split(' ')
+              .map((n) => n[0])
+              .join('')
+              .slice(0, 2)}
+          </div>
+        )}
+      </div>
+
+      {/* Name & Tagline */}
+      <div className="text-center min-w-0 w-full">
+        <p className="font-medium text-sm truncate">{partner.name}</p>
+        {partner.tagline && (
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">{partner.tagline}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function PartnersCarousel({ partners }: Props) {
   const list = partners || []
 
@@ -41,43 +76,20 @@ export default function PartnersCarousel({ partners }: Props) {
           </div>
         </div>
 
-        {/* Partners Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {list.map((p) => (
-            <div
-              key={p.id}
-              className="group flex flex-col items-center gap-3 p-4 rounded-xl glass-subtle hover:bg-muted/40 transition-all duration-200"
-            >
-              {/* Logo */}
-              <div className="relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                {p.imageUrl ? (
-                  <img
-                    src={p.imageUrl}
-                    alt={`${p.name} logo`}
-                    loading="lazy"
-                    className="relative w-full h-full object-contain bg-background rounded-lg p-1"
-                  />
-                ) : (
-                  <div className="relative w-full h-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-primary font-bold text-lg rounded-lg">
-                    {p.name
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')
-                      .slice(0, 2)}
-                  </div>
-                )}
-              </div>
-
-              {/* Name & Tagline */}
-              <div className="text-center min-w-0 w-full">
-                <p className="font-medium text-sm truncate">{p.name}</p>
-                {p.tagline && (
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{p.tagline}</p>
-                )}
-              </div>
-            </div>
-          ))}
+        {/* Marquee */}
+        <div
+          className="relative overflow-hidden"
+          style={{
+            maskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)',
+            WebkitMaskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)',
+          }}
+        >
+          <div className="flex gap-4 w-max animate-marquee hover:[animation-play-state:paused]">
+            {/* Duplicate the list so the loop is seamless */}
+            {[...list, ...list].map((p, i) => (
+              <PartnerCard key={`${p.id}-${i}`} partner={p} />
+            ))}
+          </div>
         </div>
       </div>
     </GlassCard>

@@ -9,6 +9,7 @@ import { Badge } from '@/packages/components/ui/badge'
 import { Skeleton } from '@/packages/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/packages/components/ui/dialog'
 import { useToast } from '@/packages/hooks/use-toast'
+import { ToastAction } from '@/packages/components/ui/toast'
 import PartnerForm from './partner-form'
 
 function PartnerTableSkeleton() {
@@ -79,29 +80,34 @@ export function PartnerList() {
     }
 
     async function handleDelete(id: string, name: string) {
-        if (!confirm('Delete partner?')) return
-        try {
-            const res = await fetch(`/api/partners/${id}`, { method: 'DELETE' })
-            if (res.ok) {
-                toast({
-                    title: 'Partner deleted',
-                    description: `Successfully deleted ${name}`,
-                })
-                load()
-            } else {
-                toast({
-                    title: 'Error',
-                    description: 'Failed to delete partner',
-                    variant: 'destructive',
-                })
-            }
-        } catch (err) {
-            toast({
-                title: 'Error',
-                description: 'Request failed',
-                variant: 'destructive',
-            })
-        }
+        toast({
+            title: `Delete "${name}"?`,
+            description: 'This cannot be undone.',
+            variant: 'destructive',
+            action: (
+                <ToastAction
+                    altText="Confirm delete"
+                    onClick={async () => {
+                        try {
+                            const res = await fetch(`/api/partners/${id}`, { method: 'DELETE' })
+                            if (res.ok) {
+                                toast({
+                                    title: 'Partner deleted',
+                                    description: `Successfully deleted ${name}`,
+                                })
+                                load()
+                            } else {
+                                toast({ title: 'Error', description: 'Failed to delete partner', variant: 'destructive' })
+                            }
+                        } catch (err) {
+                            toast({ title: 'Error', description: 'Request failed', variant: 'destructive' })
+                        }
+                    }}
+                >
+                    Delete
+                </ToastAction>
+            ),
+        })
     }
 
     return (

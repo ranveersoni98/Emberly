@@ -16,16 +16,17 @@ export const metadata = buildPageMetadata({
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
 
-  const [fileCount, urlCount, storageResult] = await Promise.all([
+  const [fileCount, urlCount, user] = await Promise.all([
     prisma.file.count({ where: { userId: session!.user.id } }),
     prisma.shortenedUrl.count({ where: { userId: session!.user.id } }),
-    prisma.file.aggregate({
-      where: { userId: session!.user.id },
-      _sum: { size: true },
+    prisma.user.findUnique({
+      where: { id: session!.user.id },
+      select: { storageUsed: true },
     }),
   ])
 
-  const storageUsed = storageResult._sum.size ?? 0
+  // storageUsed is stored in MB on the User model (same source as the quota system)
+  const storageUsedBytes = (user?.storageUsed ?? 0) * 1024 * 1024
 
   return (
     <DashboardShell header={
@@ -44,7 +45,7 @@ export default async function DashboardPage() {
         userName={session!.user.name ?? 'there'}
         fileCount={fileCount}
         urlCount={urlCount}
-        storageUsed={formatBytes(Number(storageUsed))}
+        storageUsed={formatBytes(storageUsedBytes)}
       />
     </DashboardShell>
   )

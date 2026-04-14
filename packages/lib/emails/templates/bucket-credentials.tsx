@@ -25,10 +25,6 @@ export interface BucketCredentialsEmailProps {
   s3Region: string
   /** Access key ID */
   s3AccessKeyId: string
-  /** Custom endpoint URL if non-AWS provider */
-  s3Endpoint?: string
-  /** Whether to use path-style URLs */
-  s3ForcePathStyle?: boolean
   /** Link to the dashboard bucket page */
   dashboardUrl?: string
 }
@@ -39,8 +35,6 @@ export function BucketCredentialsEmail({
   s3Bucket,
   s3Region,
   s3AccessKeyId,
-  s3Endpoint,
-  s3ForcePathStyle,
   dashboardUrl = 'https://embrly.ca/dashboard/bucket',
 }: BucketCredentialsEmailProps) {
   return (
@@ -100,10 +94,6 @@ export function BucketCredentialsEmail({
                   { label: 'Bucket Name', value: s3Bucket },
                   { label: 'Region', value: s3Region },
                   { label: 'Access Key ID', value: s3AccessKeyId },
-                  ...(s3Endpoint ? [{ label: 'Endpoint URL', value: s3Endpoint }] : []),
-                  ...(s3ForcePathStyle !== undefined
-                    ? [{ label: 'Path Style', value: s3ForcePathStyle ? 'Enabled' : 'Disabled' }]
-                    : []),
                 ].map(({ label, value }) => (
                   <Row key={label} className="mb-3">
                     <Column>

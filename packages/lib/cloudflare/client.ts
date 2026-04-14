@@ -144,6 +144,57 @@ export async function listDnsRecords(opts: { type?: string; name?: string } = {}
     }
 }
 
+export async function createDnsRecord(params: {
+    type: 'CNAME' | 'A'
+    name: string     // e.g. 'storage-ewr' (relative to zone)
+    content: string  // e.g. 'ewr1.vultrobjects.com'
+    proxied?: boolean
+    ttl?: number     // 1 = automatic
+}): Promise<{ id: string; name: string }> {
+    try {
+        const body = {
+            type: params.type,
+            name: params.name,
+            content: params.content,
+            proxied: params.proxied ?? false,
+            ttl: params.ttl ?? 1,
+        }
+        const json = await cfFetch('/dns_records', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        })
+        if (!json) throw new Error('Cloudflare returned empty response')
+        if (json.success === false) {
+            const errBody = json.errors || json
+            throw new CloudflareError('Cloudflare reported failure', (json?.status as number) || 422, errBody, '/zones/<zone>/dns_records')
+        }
+        const result = 'result' in json ? json.result : json
+        return { id: result.id, name: result.name }
+    } catch (err) {
+        try {
+            logger.error('createDnsRecord failed', { message: (err as any)?.message, status: (err as any)?.status, body: (err as any)?.body ?? err })
+        } catch (_) { }
+        if (err instanceof CloudflareError) throw err
+        throw new Error('Cloudflare createDnsRecord failed: ' + ((err as any)?.message || String(err)))
+    }
+}
+
+export async function deleteDnsRecord(recordId: string): Promise<void> {
+    try {
+        const json = await cfFetch(`/dns_records/${encodeURIComponent(recordId)}`, { method: 'DELETE' })
+        if (json && json.success === false) {
+            const errBody = json.errors || json
+            throw new CloudflareError('Cloudflare reported failure', (json?.status as number) || 422, errBody, `/zones/<zone>/dns_records/${recordId}`)
+        }
+    } catch (err) {
+        try {
+            logger.error('deleteDnsRecord failed', { message: (err as any)?.message, status: (err as any)?.status, body: (err as any)?.body ?? err })
+        } catch (_) { }
+        if (err instanceof CloudflareError) throw err
+        throw new Error('Cloudflare deleteDnsRecord failed: ' + ((err as any)?.message || String(err)))
+    }
+}
+
 export async function getCustomHostname(hostnameId: string) {
     try {
         const json = await cfFetch(`/custom_hostnames/${encodeURIComponent(hostnameId)}`, { method: 'GET' })
@@ -163,4 +214,18 @@ export async function getCustomHostname(hostnameId: string) {
     }
 }
 
-export default { createCustomHostname, getCustomHostname }
+/** Returns the zone's root domain name (e.g. 'emberly.site') by querying GET /zones/{zoneId} */
+export async function getZoneName(): Promise<string> {
+    const { zoneId, apiToken } = await getCfCredentials()
+    if (!zoneId || !apiToken) throw new Error('Cloudflare zone credentials not configured')
+    const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}`, {
+        headers: { Authorization: `Bearer ${apiToken}` },
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok || json?.success === false) {
+        throw new CloudflareError('Failed to fetch zone name', res.status, json?.errors ?? json, `/zones/${zoneId}`)
+    }
+    return json.result.name as string
+}
+
+export default { createCustomHostname, getCustomHostname, createDnsRecord, deleteDnsRecord, getZoneName }

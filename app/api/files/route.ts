@@ -249,7 +249,7 @@ export async function POST(req: Request) {
       if (squadContext) {
         await tx.nexiumSquad.update({
           where: { id: squadContext.squadId },
-          data: { storageUsed: { increment: uploadedFile.size } },
+          data: { storageUsed: { increment: bytesToMB(uploadedFile.size) } },
         })
       }
 

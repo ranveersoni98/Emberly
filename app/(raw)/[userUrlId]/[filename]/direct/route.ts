@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/packages/lib/auth'
 import { checkFileAccess } from '@/packages/lib/files/access'
 import { buildRawUrl, findFileByUrlPath } from '@/packages/lib/files/lookup'
-import { S3StorageProvider, getStorageProvider } from '@/packages/lib/storage'
+import { getStorageProvider } from '@/packages/lib/storage'
 
 export async function GET(
   req: Request,
@@ -34,13 +34,10 @@ export async function GET(
 
     const storageProvider = await getStorageProvider()
 
-    if (!(storageProvider instanceof S3StorageProvider)) {
-      return NextResponse.json({ url: buildRawUrl(urlPath, providedPassword) })
-    }
-
-    const directUrl = await storageProvider.getFileUrl(file.path)
-
-    return NextResponse.json({ url: directUrl })
+    // Always route through our raw proxy endpoint — never return a direct storage URL.
+    // This ensures storage provider hostnames (e.g. vultrobjects.com) are never exposed.
+    void storageProvider // provider confirmed to exist
+    return NextResponse.json({ url: buildRawUrl(urlPath, providedPassword) })
   } catch (error) {
     console.error('Direct URL error:', error)
     return new Response(null, { status: 500 })

@@ -109,6 +109,9 @@ export const configSchema = z.object({
         secretKey: z.string().optional().default(''),
         webhookSecret: z.string().optional().default(''),
       }).passthrough().optional().default({}),
+      vultr: z.object({
+        apiKey: z.string().optional().default(''),
+      }).passthrough().optional().default({}),
       resend: z.object({
         apiKey: z.string().optional().default(''),
         emailFrom: z.string().optional().default(''),
@@ -227,6 +230,9 @@ export const DEFAULT_CONFIG: EmberlyConfig = {
       stripe: {
         secretKey: '',
         webhookSecret: '',
+      },
+      vultr: {
+        apiKey: '',
       },
       resend: {
         apiKey: '',

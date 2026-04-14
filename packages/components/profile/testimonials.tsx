@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/packages/components/ui/select'
+import { useToast } from '@/packages/hooks/use-toast'
+import { ToastAction } from '@/packages/components/ui/toast'
 
 // Glass card wrapper component for consistent styling
 function GlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -28,6 +30,7 @@ export function ProfileTestimonials() {
     const [message, setMessage] = useState<string | null>(null)
     const [testimonial, setTestimonial] = useState<any | null>(null)
     const [editing, setEditing] = useState(false)
+    const { toast } = useToast()
 
     useEffect(() => {
         let mounted = true
@@ -101,20 +104,33 @@ export function ProfileTestimonials() {
     }
 
     async function handleDelete() {
-        if (!confirm('Delete your testimonial? This cannot be undone.')) return
-        setLoading(true)
-        try {
-            const res = await fetch('/api/testimonials', { method: 'DELETE' })
-            const payload = await res.json()
-            if (!res.ok) throw new Error(payload.error || 'Failed to delete')
-            setTestimonial(null)
-            setContent('')
-            setRating('')
-            setMessage('Deleted')
-        } catch (err: any) {
-            setMessage(err?.message || 'Deletion failed')
-        }
-        setLoading(false)
+        toast({
+            title: 'Delete your testimonial?',
+            description: 'This cannot be undone.',
+            variant: 'destructive',
+            action: (
+                <ToastAction
+                    altText="Confirm delete"
+                    onClick={async () => {
+                        setLoading(true)
+                        try {
+                            const res = await fetch('/api/testimonials', { method: 'DELETE' })
+                            const payload = await res.json()
+                            if (!res.ok) throw new Error(payload.error || 'Failed to delete')
+                            setTestimonial(null)
+                            setContent('')
+                            setRating('')
+                            toast({ title: 'Testimonial deleted' })
+                        } catch (err: any) {
+                            toast({ title: 'Deletion failed', description: err?.message, variant: 'destructive' })
+                        }
+                        setLoading(false)
+                    }}
+                >
+                    Delete
+                </ToastAction>
+            ),
+        })
     }
 
     async function toggleArchive() {

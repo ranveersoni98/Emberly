@@ -45,12 +45,12 @@ export interface PlanLimits {
  * A `past_due` bucket subscription reinstates normal plan quotas.
  */
 export async function getPlanLimits(userId: string): Promise<PlanLimits> {
-    // Check for an active storage-bucket subscription first — it removes all limits
+    // Check for an active storage-bucket-* subscription first — it removes all limits
     const bucketSub = await prisma.subscription.findFirst({
         where: {
             userId,
             status: 'active',
-            product: { slug: 'storage-bucket' },
+            product: { slug: { startsWith: 'storage-bucket' } },
         },
         select: { id: true },
     })
